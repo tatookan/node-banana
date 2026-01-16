@@ -30,16 +30,21 @@ async function generateWithGoogle(
   images?: string[],
   requestId?: string
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Initialize Google GenAI client with API Key for Vertex AI
+  const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
   if (!apiKey) {
-    logger.error('api.error', 'GEMINI_API_KEY not configured', { requestId });
-    throw new Error("GEMINI_API_KEY not configured");
+    logger.error('api.error', 'GOOGLE_CLOUD_API_KEY not configured', { requestId });
+    throw new Error("GOOGLE_CLOUD_API_KEY not configured");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({
+    vertexai: true,
+    apiKey: apiKey,
+  });
+
   const modelId = GOOGLE_MODEL_MAP[model];
 
-  logger.info('api.llm', 'Calling Google AI API', {
+  logger.info('api.llm', 'Calling Google GenAI API', {
     requestId,
     model: modelId,
     temperature,
@@ -49,35 +54,42 @@ async function generateWithGoogle(
   });
 
   // Build multimodal content if images are provided
-  let contents: string | Array<{ inlineData: { mimeType: string; data: string } } | { text: string }>;
+  let contents: string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
   if (images && images.length > 0) {
-    contents = [
-      ...images.map((img) => {
-        // Extract base64 data and mime type from data URL
-        const matches = img.match(/^data:(.+?);base64,(.+)$/);
-        if (matches) {
-          return {
-            inlineData: {
-              mimeType: matches[1],
-              data: matches[2],
-            },
-          };
-        }
+    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+    // Add images first
+    for (const img of images) {
+      // Extract base64 data and mime type from data URL
+      const matches = img.match(/^data:(.+?);base64,(.+)$/);
+      if (matches) {
+        parts.push({
+          inlineData: {
+            mimeType: matches[1],
+            data: matches[2],
+          },
+        });
+      } else {
         // Fallback: assume PNG if no data URL prefix
-        return {
+        parts.push({
           inlineData: {
             mimeType: "image/png",
             data: img,
           },
-        };
-      }),
-      { text: prompt },
-    ];
+        });
+      }
+    }
+
+    // Add text prompt
+    parts.push({ text: prompt });
+
+    contents = parts;
   } else {
     contents = prompt;
   }
 
   const startTime = Date.now();
+
   const response = await ai.models.generateContent({
     model: modelId,
     contents,
@@ -86,16 +98,32 @@ async function generateWithGoogle(
       maxOutputTokens: maxTokens,
     },
   });
+
   const duration = Date.now() - startTime;
 
-  // Use the convenient .text property that concatenates all text parts
-  const text = response.text;
-  if (!text) {
-    logger.error('api.error', 'No text in Google AI response', { requestId });
-    throw new Error("No text in Google AI response");
+  // Extract text from response
+  const candidates = response.candidates;
+  if (!candidates || candidates.length === 0) {
+    logger.error('api.error', 'No candidates in Google GenAI response', { requestId });
+    throw new Error("No candidates in Google GenAI response");
   }
 
-  logger.info('api.llm', 'Google AI API response received', {
+  const parts = candidates[0].content?.parts;
+  if (!parts || parts.length === 0) {
+    logger.error('api.error', 'No parts in Google GenAI response', { requestId });
+    throw new Error("No parts in Google GenAI response");
+  }
+
+  // Concatenate all text parts
+  const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text);
+  const text = textParts.join('');
+
+  if (!text) {
+    logger.error('api.error', 'No text in Google GenAI response', { requestId });
+    throw new Error("No text in Google GenAI response");
+  }
+
+  logger.info('api.llm', 'Google GenAI API response received', {
     requestId,
     duration,
     responseLength: text.length,

@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { GenerateRequest, GenerateResponse, ModelType } from "@/types";
 
-export const maxDuration = 300; // 5 minute timeout for Gemini API calls
-export const dynamic = 'force-dynamic'; // Ensure this route is always dynamic
+export const maxDuration = 300; // 5 minute timeout
+export const dynamic = 'force-dynamic';
 
 // Map model types to Gemini model IDs
 const MODEL_MAP: Record<ModelType, string> = {
-  "nano-banana": "gemini-2.5-flash-image", // Updated to correct model name
+  "nano-banana": "gemini-2.0-flash-exp",
   "nano-banana-pro": "gemini-3-pro-image-preview",
 };
 
@@ -17,25 +17,33 @@ export async function POST(request: NextRequest) {
   console.log(`[API:${requestId}] Timestamp: ${new Date().toISOString()}`);
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-
+    // Initialize Google GenAI client with API Key for Vertex AI
+    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
     if (!apiKey) {
-      console.error(`[API:${requestId}] ❌ No API key configured`);
+      console.error(`[API:${requestId}] ❌ GOOGLE_CLOUD_API_KEY not configured`);
       return NextResponse.json<GenerateResponse>(
         {
           success: false,
-          error: "API key not configured. Add GEMINI_API_KEY to .env.local",
+          error: "GOOGLE_CLOUD_API_KEY not configured",
         },
         { status: 500 }
       );
     }
 
+    console.log(`[API:${requestId}] Initializing Google GenAI client with API Key (Vertex AI mode)...`);
+
+    const ai = new GoogleGenAI({
+      vertexai: true,
+      apiKey: apiKey,
+    });
+
     console.log(`[API:${requestId}] Parsing request body...`);
     const body: GenerateRequest = await request.json();
     const { images, prompt, model = "nano-banana-pro", aspectRatio, resolution, useGoogleSearch } = body;
 
+    const modelId = MODEL_MAP[model];
     console.log(`[API:${requestId}] Request parameters:`);
-    console.log(`[API:${requestId}]   - Model: ${model} -> ${MODEL_MAP[model]}`);
+    console.log(`[API:${requestId}]   - Model: ${model} -> ${modelId}`);
     console.log(`[API:${requestId}]   - Images count: ${images?.length || 0}`);
     console.log(`[API:${requestId}]   - Prompt length: ${prompt?.length || 0} chars`);
     console.log(`[API:${requestId}]   - Aspect Ratio: ${aspectRatio || 'default'}`);
@@ -68,13 +76,9 @@ export async function POST(request: NextRequest) {
       return { data: image, mimeType: "image/png" };
     });
 
-    // Initialize Gemini client
-    console.log(`[API:${requestId}] Initializing Gemini client...`);
-    const ai = new GoogleGenAI({ apiKey });
-
     // Build request parts array with prompt and all images
     console.log(`[API:${requestId}] Building request parts...`);
-    const requestParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
       { text: prompt },
       ...imageData.map(({ data, mimeType }) => ({
         inlineData: {
@@ -83,9 +87,9 @@ export async function POST(request: NextRequest) {
         },
       })),
     ];
-    console.log(`[API:${requestId}] Request parts count: ${requestParts.length} (1 text + ${imageData.length} images)`);
+    console.log(`[API:${requestId}] Request parts count: ${parts.length} (1 text + ${imageData.length} images)`);
 
-    // Build config object based on model capabilities
+    // Build config object
     console.log(`[API:${requestId}] Building generation config...`);
     const config: any = {
       responseModalities: ["IMAGE", "TEXT"],
@@ -120,16 +124,16 @@ export async function POST(request: NextRequest) {
       console.log(`[API:${requestId}] Tools:`, JSON.stringify(tools, null, 2));
     }
 
-    // Make request to Gemini
+    // Make request to Gemini API
     console.log(`[API:${requestId}] Calling Gemini API...`);
     const geminiStartTime = Date.now();
 
     const response = await ai.models.generateContent({
-      model: MODEL_MAP[model],
+      model: modelId,
       contents: [
         {
           role: "user",
-          parts: requestParts,
+          parts,
         },
       ],
       config,
@@ -156,10 +160,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parts = candidates[0].content?.parts;
-    console.log(`[API:${requestId}] Parts count in first candidate: ${parts?.length || 0}`);
+    const responseParts = candidates[0].content?.parts;
+    console.log(`[API:${requestId}] Parts count in first candidate: ${responseParts?.length || 0}`);
 
-    if (!parts) {
+    if (!responseParts) {
       console.error(`[API:${requestId}] ❌ No parts in candidate content`);
       console.error(`[API:${requestId}] Candidate:`, JSON.stringify(candidates[0], null, 2));
       return NextResponse.json<GenerateResponse>(
@@ -172,13 +176,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Log all parts
-    parts.forEach((part, idx) => {
+    responseParts.forEach((part: any, idx: number) => {
       const partKeys = Object.keys(part);
       console.log(`[API:${requestId}] Part ${idx + 1}: ${partKeys.join(', ')}`);
     });
 
     // Find image part in response
-    for (const part of parts) {
+    for (const part of responseParts) {
       if (part.inlineData && part.inlineData.data) {
         const mimeType = part.inlineData.mimeType || "image/png";
         const imageData = part.inlineData.data;
@@ -212,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     // If no image found, check for text error
     console.warn(`[API:${requestId}] ⚠ No image found in parts, checking for text...`);
-    for (const part of parts) {
+    for (const part of responseParts) {
       if (part.text) {
         console.error(`[API:${requestId}] ❌ Model returned text instead of image`);
         console.error(`[API:${requestId}] Text preview: "${part.text.substring(0, 200)}"`);
@@ -227,7 +231,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.error(`[API:${requestId}] ❌ No image or text found in response`);
-    console.error(`[API:${requestId}] All parts:`, JSON.stringify(parts, null, 2));
+    console.error(`[API:${requestId}] All parts:`, JSON.stringify(responseParts, null, 2));
     return NextResponse.json<GenerateResponse>(
       {
         success: false,
@@ -236,7 +240,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } catch (error) {
-    const requestId = 'unknown'; // Fallback if we don't have it in scope
+    const requestId = 'unknown';
     console.error(`[API:${requestId}] ❌❌❌ EXCEPTION CAUGHT IN API ROUTE ❌❌❌`);
     console.error(`[API:${requestId}] Error type:`, error?.constructor?.name);
     console.error(`[API:${requestId}] Error toString:`, String(error));
@@ -258,7 +262,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Try to extract more details from Google API errors
+    // Try to extract more details from API errors
     if (error && typeof error === "object") {
       const apiError = error as Record<string, unknown>;
       console.error(`[API:${requestId}] Error object keys:`, Object.keys(apiError));
