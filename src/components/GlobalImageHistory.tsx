@@ -138,20 +138,20 @@ function HistorySidebar({
       {/* Header */}
       <div className="px-4 py-3 border-b border-neutral-700 flex items-center justify-between shrink-0">
         <span className="text-sm text-neutral-200 font-medium">
-          All History ({history.length})
+          全部历史 ({history.length})
         </span>
         <div className="flex items-center gap-2">
           <button
             onClick={onClear}
             className="text-[10px] text-neutral-500 hover:text-red-400 transition-colors"
-            title="Clear all history"
+            title="清除所有历史"
           >
-            Clear All
+            全部清除
           </button>
           <button
             onClick={onClose}
             className="w-5 h-5 rounded hover:bg-neutral-700 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-            title="Close"
+            title="关闭"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -182,7 +182,7 @@ function HistorySidebar({
             {/* Info */}
             <div className="flex-1 min-w-0 flex flex-col justify-center">
               <p className="text-[11px] text-neutral-300 truncate">
-                {item.prompt?.substring(0, 60) || "No prompt"}
+                {item.prompt?.substring(0, 60) || "无提示词"}
               </p>
               <p className="text-[10px] text-neutral-500 mt-0.5">
                 {formatRelativeTime(item.timestamp)} · {item.model === "nano-banana-pro" ? "Pro" : "Standard"}

@@ -38,7 +38,7 @@ export function SplitGridNode({ id, data, selected }: NodeProps<SplitGridNodeTyp
   return (
     <BaseNode
       id={id}
-      title="Split Grid"
+      title="网格分割"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -102,7 +102,7 @@ export function SplitGridNode({ id, data, selected }: NodeProps<SplitGridNodeTyp
           <div className="w-full flex-1 min-h-[112px] border border-dashed border-neutral-600 rounded flex flex-col items-center justify-center">
             {nodeData.status === "error" ? (
               <span className="text-[10px] text-red-400 text-center px-2">
-                {nodeData.error || "Error"}
+                {nodeData.error || "错误"}
               </span>
             ) : nodeData.status === "loading" ? (
               <svg className="w-4 h-4 animate-spin text-neutral-400" fill="none" viewBox="0 0 24 24">

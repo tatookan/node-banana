@@ -19,12 +19,12 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
       if (!file) return;
 
       if (!file.type.match(/^image\/(png|jpeg|webp)$/)) {
-        alert("Unsupported format. Use PNG, JPG, or WebP.");
+        alert("不支持的格式。请使用 PNG、JPG 或 WebP 格式。");
         return;
       }
 
       if (file.size > 10 * 1024 * 1024) {
-        alert("Image too large. Maximum size is 10MB.");
+        alert("图片过大。最大支持 10MB。");
         return;
       }
 
@@ -80,7 +80,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   return (
     <BaseNode
       id={id}
-      title="Image"
+      title="图片"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -108,7 +108,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         <div className="relative group flex-1 flex flex-col min-h-0">
           <img
             src={nodeData.image}
-            alt={nodeData.filename || "Uploaded image"}
+            alt={nodeData.filename || "上传的图片"}
             className="w-full flex-1 min-h-0 object-contain rounded"
           />
           <button

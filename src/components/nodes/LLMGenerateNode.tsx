@@ -75,7 +75,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
   return (
     <BaseNode
       id={id}
-      title="LLM Generate"
+      title="LLM 生成"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -134,7 +134,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
             </div>
           ) : nodeData.status === "error" ? (
             <span className="text-[10px] text-red-400">
-              {nodeData.error || "Failed"}
+              {nodeData.error || "失败"}
             </span>
           ) : nodeData.outputText ? (
             <>
@@ -146,7 +146,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
                   onClick={handleRegenerate}
                   disabled={isRunning}
                   className="w-5 h-5 bg-neutral-900/80 hover:bg-blue-600/80 disabled:opacity-50 disabled:cursor-not-allowed rounded flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-                  title="Regenerate"
+                  title="重新生成"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -155,7 +155,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
                 <button
                   onClick={handleClearOutput}
                   className="w-5 h-5 bg-neutral-900/80 hover:bg-red-600/80 rounded flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-                  title="Clear output"
+                  title="清除输出"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -166,7 +166,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
           ) : (
             <div className="h-full flex items-center justify-center">
               <span className="text-neutral-500 text-[10px]">
-                Run to generate
+                运行以生成
               </span>
             </div>
           )}
@@ -200,7 +200,7 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
 
         {/* Temperature slider */}
         <div className="flex flex-col gap-0.5 shrink-0">
-          <label className="text-[9px] text-neutral-500">Temp: {nodeData.temperature.toFixed(1)}</label>
+          <label className="text-[9px] text-neutral-500">温度：{nodeData.temperature.toFixed(1)}</label>
           <input
             type="range"
             min="0"

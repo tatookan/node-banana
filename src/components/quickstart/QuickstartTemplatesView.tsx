@@ -112,7 +112,7 @@ export function QuickstartTemplatesView({
       <div className="px-6 py-4 border-b border-neutral-700 flex items-center gap-4">
         <QuickstartBackButton onClick={onBack} disabled={isLoading} />
         <h2 className="text-lg font-semibold text-neutral-100">
-          Workflow Templates
+          工作流模板
         </h2>
       </div>
 
@@ -121,7 +121,7 @@ export function QuickstartTemplatesView({
         {/* Quick Start Templates */}
         <div className="space-y-3">
           <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-            Quick Start
+            快速开始
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {presets.map((preset) => (
@@ -205,7 +205,7 @@ export function QuickstartTemplatesView({
         {/* Community Workflows */}
         <div className="space-y-3">
           <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-            Community Workflows
+            社区工作流
           </h3>
 
           {isLoadingList ? (
@@ -232,7 +232,7 @@ export function QuickstartTemplatesView({
             </div>
           ) : communityWorkflows.length === 0 ? (
             <p className="text-sm text-neutral-500 py-4">
-              No community workflows available
+              暂无社区工作流
             </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -334,7 +334,7 @@ export function QuickstartTemplatesView({
                 onClick={() => setError(null)}
                 className="text-xs text-red-400/70 hover:text-red-400 mt-1"
               >
-                Dismiss
+                关闭
               </button>
             </div>
           </div>

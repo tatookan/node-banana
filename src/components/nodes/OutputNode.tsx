@@ -28,7 +28,7 @@ export function OutputNode({ id, data, selected }: NodeProps<OutputNodeType>) {
     <>
       <BaseNode
         id={id}
-        title="Output"
+        title="输出"
         customTitle={nodeData.customTitle}
         comment={nodeData.comment}
         onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}

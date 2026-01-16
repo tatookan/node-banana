@@ -389,7 +389,7 @@ export function WorkflowCanvas() {
       }
 
       if (!sourceImage) {
-        alert("No image available to split. Generate or load an image first.");
+        alert("没有可分割的图片。请先生成或加载图片。");
         return;
       }
 
@@ -400,7 +400,7 @@ export function WorkflowCanvas() {
         const { grid, images } = await detectAndSplitGrid(sourceImage);
 
         if (images.length === 0) {
-          alert("Could not detect grid in image.");
+          alert("无法检测图片中的网格。");
           setIsSplitting(false);
           return;
         }
@@ -448,7 +448,7 @@ export function WorkflowCanvas() {
         console.log(`[SplitGrid] Created ${images.length} nodes from ${grid.rows}x${grid.cols} grid (confidence: ${Math.round(grid.confidence * 100)}%)`);
       } catch (error) {
         console.error("[SplitGrid] Error:", error);
-        alert("Failed to split image grid: " + (error instanceof Error ? error.message : "Unknown error"));
+        alert("分割图片网格失败：" + (error instanceof Error ? error.message : "未知错误"));
       } finally {
         setIsSplitting(false);
       }
@@ -998,10 +998,10 @@ export function WorkflowCanvas() {
             if (workflow.version && workflow.nodes && workflow.edges) {
               await loadWorkflow(workflow);
             } else {
-              alert("Invalid workflow file format");
+              alert("无效的工作流文件格式");
             }
           } catch {
-            alert("Failed to parse workflow file");
+            alert("解析工作流文件失败");
           }
         };
         reader.readAsText(file);

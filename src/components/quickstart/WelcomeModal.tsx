@@ -49,10 +49,10 @@ export function WelcomeModal({
           if (workflow.version && workflow.nodes && workflow.edges) {
             onWorkflowGenerated(workflow);
           } else {
-            alert("Invalid workflow file format");
+            alert("无效的工作流文件格式");
           }
         } catch {
-          alert("Failed to parse workflow file");
+          alert("解析工作流文件失败");
         }
       };
       reader.readAsText(file);

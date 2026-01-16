@@ -21,12 +21,12 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
       if (!file) return;
 
       if (!file.type.match(/^image\/(png|jpeg|webp)$/)) {
-        alert("Unsupported format. Use PNG, JPG, or WebP.");
+        alert("不支持的格式。请使用 PNG、JPG 或 WebP 格式。");
         return;
       }
 
       if (file.size > 10 * 1024 * 1024) {
-        alert("Image too large. Maximum size is 10MB.");
+        alert("图片过大。最大支持 10MB。");
         return;
       }
 
@@ -70,7 +70,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
   const handleEdit = useCallback(() => {
     const imageToEdit = nodeData.sourceImage || nodeData.outputImage;
     if (!imageToEdit) {
-      alert("No image available. Connect an image or load one manually.");
+      alert("没有可用的图片。请连接图片或手动加载。");
       return;
     }
     openModal(id, imageToEdit, nodeData.annotations);
@@ -89,7 +89,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
   return (
     <BaseNode
       id={id}
-      title="Annotate"
+      title="标注"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -140,7 +140,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
           </button>
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded flex items-center justify-center pointer-events-none">
             <span className="text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 px-2 py-1 rounded">
-              {nodeData.annotations.length > 0 ? `Edit (${nodeData.annotations.length})` : "Add annotations"}
+              {nodeData.annotations.length > 0 ? `编辑 (${nodeData.annotations.length})` : "添加标注"}
             </span>
           </div>
         </div>

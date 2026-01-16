@@ -229,7 +229,7 @@ export function MultiSelectToolbar() {
       <button
         onClick={handleStackHorizontally}
         className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-        title="Stack horizontally (H)"
+        title="水平堆叠 (H)"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 4h4v16H6zM14 4h4v16h-4z" />
@@ -238,7 +238,7 @@ export function MultiSelectToolbar() {
       <button
         onClick={handleStackVertically}
         className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-        title="Stack vertically (V)"
+        title="垂直堆叠 (V)"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16v4H4zM4 14h16v4H4z" />
@@ -247,7 +247,7 @@ export function MultiSelectToolbar() {
       <button
         onClick={handleArrangeAsGrid}
         className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-        title="Arrange as grid (G)"
+        title="网格排列 (G)"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -262,7 +262,7 @@ export function MultiSelectToolbar() {
         <button
           onClick={handleUngroup}
           className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-          title="Remove from group"
+          title="从组中移除"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
@@ -272,7 +272,7 @@ export function MultiSelectToolbar() {
         <button
           onClick={handleCreateGroup}
           className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-          title="Create group"
+          title="创建组"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z" />
@@ -287,7 +287,7 @@ export function MultiSelectToolbar() {
       <button
         onClick={handleDownloadImages}
         className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-neutral-100 transition-colors"
-        title="Download images as ZIP"
+        title="下载图片为 ZIP"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />

@@ -47,7 +47,7 @@ export function ProjectSetupModal({
       const result = await response.json();
 
       if (!result.success) {
-        setError(result.error || "Failed to open directory picker");
+        setError(result.error || "无法打开目录选择器");
         return;
       }
 
@@ -60,7 +60,7 @@ export function ProjectSetupModal({
       }
     } catch (err) {
       setError(
-        `Failed to open directory picker: ${err instanceof Error ? err.message : "Unknown error"}`
+        `无法打开目录选择器: ${err instanceof Error ? err.message : "未知错误"}`
       );
     } finally {
       setIsBrowsing(false);
@@ -69,12 +69,12 @@ export function ProjectSetupModal({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      setError("Project name is required");
+      setError("请输入项目名称");
       return;
     }
 
     if (!directoryPath.trim()) {
-      setError("Project directory is required");
+      setError("请输入项目目录");
       return;
     }
 
@@ -89,13 +89,13 @@ export function ProjectSetupModal({
       const result = await response.json();
 
       if (!result.exists) {
-        setError("Project directory does not exist");
+        setError("项目目录不存在");
         setIsValidating(false);
         return;
       }
 
       if (!result.isDirectory) {
-        setError("Project path is not a directory");
+        setError("项目路径不是目录");
         setIsValidating(false);
         return;
       }
@@ -107,7 +107,7 @@ export function ProjectSetupModal({
       setIsValidating(false);
     } catch (err) {
       setError(
-        `Failed to validate directory: ${err instanceof Error ? err.message : "Unknown error"}`
+        `验证目录失败: ${err instanceof Error ? err.message : "未知错误"}`
       );
       setIsValidating(false);
     }
@@ -131,19 +131,19 @@ export function ProjectSetupModal({
         onKeyDown={handleKeyDown}
       >
         <h2 className="text-lg font-semibold text-neutral-100 mb-4">
-          {mode === "new" ? "New Project" : "Project Settings"}
+          {mode === "new" ? "新建项目" : "项目设置"}
         </h2>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-neutral-400 mb-1">
-              Project Name
+              项目名称
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="my-project"
+              placeholder="我的项目"
               autoFocus
               className="w-full px-3 py-2 bg-neutral-900 border border-neutral-600 rounded text-neutral-100 text-sm focus:outline-none focus:border-neutral-500"
             />
@@ -151,7 +151,7 @@ export function ProjectSetupModal({
 
           <div>
             <label className="block text-sm text-neutral-400 mb-1">
-              Project Directory
+              项目目录
             </label>
             <div className="flex gap-2">
               <input
@@ -167,11 +167,11 @@ export function ProjectSetupModal({
                 disabled={isBrowsing}
                 className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 disabled:bg-neutral-700 disabled:opacity-50 text-neutral-200 text-sm rounded transition-colors"
               >
-                {isBrowsing ? "..." : "Browse"}
+                {isBrowsing ? "..." : "浏览"}
               </button>
             </div>
             <p className="text-xs text-neutral-500 mt-1">
-              Workflow files and images will be saved here. Subfolders for inputs and generations will be auto-created.
+              工作流文件和图片将保存在此目录下。将自动创建输入和生成子文件夹。
             </p>
           </div>
 
@@ -184,9 +184,9 @@ export function ProjectSetupModal({
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-neutral-800"
               />
               <div>
-                <span className="text-sm text-neutral-200">Embed images as base64</span>
+                <span className="text-sm text-neutral-200">将图片嵌入为 base64</span>
                 <p className="text-xs text-neutral-500">
-                  Embeds all images in workflow, larger workflow files. Can hit memory limits on very large workflows.
+                  将所有图片嵌入到工作流中，工作流文件更大。大型工作流可能会达到内存限制。
                 </p>
               </div>
             </label>
@@ -200,14 +200,14 @@ export function ProjectSetupModal({
             onClick={onClose}
             className="px-4 py-2 text-sm text-neutral-400 hover:text-neutral-100 transition-colors"
           >
-            Cancel
+            取消
           </button>
           <button
             onClick={handleSave}
             disabled={isValidating || isBrowsing}
             className="px-4 py-2 text-sm bg-white text-neutral-900 rounded hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isValidating ? "Validating..." : mode === "new" ? "Create" : "Save"}
+            {isValidating ? "验证中..." : mode === "new" ? "创建" : "保存"}
           </button>
         </div>
       </div>

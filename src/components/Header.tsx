@@ -57,10 +57,10 @@ export function Header() {
         if (workflow.version && workflow.nodes && workflow.edges) {
           await loadWorkflow(workflow);
         } else {
-          alert("Invalid workflow file format");
+          alert("无效的工作流文件格式");
         }
       } catch {
-        alert("Failed to parse workflow file");
+        alert("解析工作流文件失败");
       }
     };
     reader.readAsText(file);
@@ -76,7 +76,7 @@ export function Header() {
     setTimeout(() => {
       saveToFile().catch((error) => {
         console.error("Failed to save project:", error);
-        alert("Failed to save project. Please try again.");
+        alert("保存项目失败，请重试。");
       });
     }, 50);
   };
@@ -97,12 +97,12 @@ export function Header() {
 
       if (!response.ok || !result.success) {
         console.error("Failed to open directory:", result.error);
-        alert(`Failed to open project folder: ${result.error || "Unknown error"}`);
+        alert(`打开项目文件夹失败: ${result.error || "未知错误"}`);
         return;
       }
     } catch (error) {
       console.error("Failed to open directory:", error);
-      alert("Failed to open project folder. Please try again.");
+      alert("打开项目文件夹失败，请重试。");
     }
   };
 
@@ -138,7 +138,7 @@ export function Header() {
                   onClick={() => canSave ? saveToFile() : handleOpenSettings()}
                   disabled={isSaving}
                   className="relative p-1 text-neutral-400 hover:text-neutral-200 transition-colors disabled:opacity-50"
-                  title={isSaving ? "Saving..." : canSave ? "Save project" : "Configure save location"}
+                  title={isSaving ? "保存中..." : canSave ? "保存项目" : "配置保存位置"}
                 >
                   <svg
                     className="w-4 h-4"
@@ -161,7 +161,7 @@ export function Header() {
                   <button
                     onClick={handleOpenDirectory}
                     className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
-                    title="Open Project Folder"
+                    title="打开项目文件夹"
                   >
                     <svg
                       className="w-4 h-4"
@@ -181,7 +181,7 @@ export function Header() {
                 <button
                   onClick={handleOpenSettings}
                   className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
-                  title="Project settings"
+                  title="项目设置"
                 >
                   <svg
                     className="w-4 h-4"
@@ -209,14 +209,14 @@ export function Header() {
                   onClick={handleNewProject}
                   className="text-neutral-400 hover:text-neutral-200 transition-colors"
                 >
-                  Save Project
+                  保存项目
                 </button>
                 <span className="text-neutral-500">·</span>
                 <button
                   onClick={handleOpenFile}
                   className="text-neutral-400 hover:text-neutral-200 transition-colors"
                 >
-                  Open
+                  打开
                 </button>
               </div>
             )}
@@ -228,11 +228,11 @@ export function Header() {
             <>
               <span className="text-neutral-400">
                 {isSaving ? (
-                  "Saving..."
+                  "保存中..."
                 ) : lastSavedAt ? (
-                  `Saved ${formatTime(lastSavedAt)}`
+                  `已保存 ${formatTime(lastSavedAt)}`
                 ) : (
-                  "Not saved"
+                  "未保存"
                 )}
               </span>
               <span className="text-neutral-500">·</span>
@@ -240,7 +240,7 @@ export function Header() {
                 onClick={handleOpenFile}
                 className="text-neutral-400 hover:text-neutral-200 transition-colors"
               >
-                Open
+                打开
               </button>
             </>
           )}
@@ -251,7 +251,7 @@ export function Header() {
             rel="noopener noreferrer"
             className="text-neutral-400 hover:text-neutral-200 transition-colors"
           >
-            Made by Willie
+            心视觉文化
           </a>
           <span className="text-neutral-500">·</span>
           <a
@@ -259,7 +259,7 @@ export function Header() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-neutral-400 hover:text-neutral-200 transition-colors"
-            title="Support"
+            title="支持"
           >
             <svg
               className="w-4 h-4"

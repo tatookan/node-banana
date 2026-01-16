@@ -19,7 +19,7 @@ export function PromptWorkflowView({
 
   const handleGenerate = useCallback(async () => {
     if (!description || description.trim().length < 3) {
-      setError("Please describe your workflow (at least 3 characters)");
+      setError("请描述您的工作流（至少 3 个字符）");
       return;
     }
 
@@ -39,7 +39,7 @@ export function PromptWorkflowView({
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to generate workflow");
+        throw new Error(result.error || "生成工作流失败");
       }
 
       if (result.workflow) {
@@ -48,7 +48,7 @@ export function PromptWorkflowView({
     } catch (err) {
       console.error("Prompt workflow error:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to generate workflow"
+        err instanceof Error ? err.message : "生成工作流失败"
       );
     } finally {
       setIsGenerating(false);
@@ -63,7 +63,7 @@ export function PromptWorkflowView({
       <div className="px-6 py-4 border-b border-neutral-700 flex items-center gap-4">
         <QuickstartBackButton onClick={onBack} disabled={isGenerating} />
         <h2 className="text-lg font-semibold text-neutral-100">
-          Prompt a Workflow
+          提示生成工作流
         </h2>
       </div>
 
@@ -72,7 +72,7 @@ export function PromptWorkflowView({
         {/* Description Input */}
         <div className="space-y-2">
           <label className="text-xs font-medium text-neutral-400">
-            Describe your workflow
+            描述您的工作流
           </label>
           <textarea
             value={description}
@@ -80,7 +80,7 @@ export function PromptWorkflowView({
               setDescription(e.target.value);
               setError(null);
             }}
-            placeholder="e.g., Create product photography with consistent lighting and style from reference images..."
+            placeholder="例如：创建具有一致光照和风格的产品摄影，从参考图像..."
             disabled={isGenerating}
             rows={5}
             className={`
@@ -92,8 +92,7 @@ export function PromptWorkflowView({
             `}
           />
           <p className="text-[10px] text-neutral-500">
-            Describe what you want your workflow to accomplish. Be specific
-            about inputs, outputs, and any transformations.
+            描述您希望工作流完成什么。具体说明输入、输出和任何转换。
           </p>
         </div>
 
@@ -119,7 +118,7 @@ export function PromptWorkflowView({
                 onClick={() => setError(null)}
                 className="text-xs text-red-400/70 hover:text-red-400 mt-1"
               >
-                Dismiss
+                关闭
               </button>
             </div>
           </div>
@@ -161,7 +160,7 @@ export function PromptWorkflowView({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span>Generating...</span>
+              <span>生成中...</span>
             </>
           ) : (
             <>

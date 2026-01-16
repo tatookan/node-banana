@@ -69,7 +69,7 @@ export function EdgeToolbar() {
             ? "text-amber-400 hover:text-amber-300"
             : "text-neutral-400 hover:text-neutral-100"
         }`}
-        title={hasPause ? "Remove pause" : "Add pause"}
+        title={hasPause ? "移除暂停" : "添加暂停"}
       >
         {hasPause ? (
           // Play icon (resume)
@@ -86,7 +86,7 @@ export function EdgeToolbar() {
       <button
         onClick={handleDelete}
         className="p-1.5 rounded hover:bg-neutral-700 text-neutral-400 hover:text-red-400 transition-colors"
-        title="Delete"
+        title="删除"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path

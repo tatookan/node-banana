@@ -15,8 +15,8 @@ const TARGET_COUNT_OPTIONS = [4, 6, 8, 9, 10] as const;
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
 const MODELS: { value: ModelType; label: string }[] = [
-  { value: "nano-banana", label: "Nano Banana" },
-  { value: "nano-banana-pro", label: "Nano Banana Pro" },
+  { value: "nano-banana", label: "AI分镜画板" },
+  { value: "nano-banana-pro", label: "AI分镜画板 Pro" },
 ];
 
 // Calculate grid dimensions from target count
@@ -178,14 +178,14 @@ export function SplitGridSettingsModal({
         onKeyDown={handleKeyDown}
       >
         <h2 className="text-lg font-semibold text-neutral-100 mb-4">
-          Split Grid Settings
+          网格分割设置
         </h2>
 
         <div className="space-y-4">
           {/* Target count selector with visual preview */}
           <div>
             <label className="block text-sm text-neutral-400 mb-2">
-              Number of Images
+              图片数量
             </label>
             <div className="flex gap-2">
               {TARGET_COUNT_OPTIONS.map((count) => {
@@ -222,36 +222,36 @@ export function SplitGridSettingsModal({
               })}
             </div>
             <p className="text-xs text-neutral-500 mt-2">
-              Grid will be split into {rows}x{cols} = {targetCount} images
+              网格将被分割为 {rows}x{cols} = {targetCount} 张图片
             </p>
           </div>
 
           {/* Default prompt */}
           <div>
             <label className="block text-sm text-neutral-400 mb-1">
-              Default Prompt
+              默认提示词
             </label>
             <textarea
               value={defaultPrompt}
               onChange={(e) => setDefaultPrompt(e.target.value)}
-              placeholder="Enter prompt that will be applied to all generated images..."
+              placeholder="输入将应用到所有生成图片的提示词..."
               rows={3}
               className="w-full px-3 py-2 bg-neutral-900 border border-neutral-600 rounded text-neutral-100 text-sm focus:outline-none focus:border-neutral-500 resize-none"
             />
             <p className="text-xs text-neutral-500 mt-1">
-              Each prompt node can be edited individually after creation
+              每个提示词节点可在创建后单独编辑
             </p>
           </div>
 
           {/* Generate settings */}
           <div>
             <label className="block text-sm text-neutral-400 mb-2">
-              Generate Node Settings
+              生成节点设置
             </label>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-neutral-500 mb-1">
-                  Model
+                  模型
                 </label>
                 <select
                   value={model}
@@ -266,7 +266,7 @@ export function SplitGridSettingsModal({
 
               <div>
                 <label className="block text-xs text-neutral-500 mb-1">
-                  Aspect Ratio
+                  宽高比
                 </label>
                 <select
                   value={aspectRatio}
@@ -283,7 +283,7 @@ export function SplitGridSettingsModal({
                 <>
                   <div>
                     <label className="block text-xs text-neutral-500 mb-1">
-                      Resolution
+                      分辨率
                     </label>
                     <select
                       value={resolution}
@@ -304,7 +304,7 @@ export function SplitGridSettingsModal({
                         onChange={(e) => setUseGoogleSearch(e.target.checked)}
                         className="w-4 h-4 rounded border-neutral-600 bg-neutral-900"
                       />
-                      Google Search
+                      Google 搜索
                     </label>
                   </div>
                 </>
@@ -318,13 +318,13 @@ export function SplitGridSettingsModal({
             onClick={onClose}
             className="px-4 py-2 text-sm text-neutral-400 hover:text-neutral-100 transition-colors"
           >
-            Cancel
+            取消
           </button>
           <button
             onClick={handleCreate}
             className="px-4 py-2 text-sm bg-white text-neutral-900 rounded hover:bg-neutral-200 transition-colors"
           >
-            Create {targetCount} Generate Sets
+            创建 {targetCount} 组生成节点
           </button>
         </div>
       </div>

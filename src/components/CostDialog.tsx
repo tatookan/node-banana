@@ -24,7 +24,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
   }, [onClose]);
 
   const handleReset = () => {
-    if (confirm("Reset incurred cost to $0.00?")) {
+    if (confirm("确定要将已产生费用重置为 $0.00 吗？")) {
       resetIncurredCost();
     }
   };
@@ -34,7 +34,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
       <div className="bg-neutral-800 rounded-lg p-6 w-[400px] border border-neutral-700 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-neutral-100">
-            Workflow Costs
+            工作流费用
           </h2>
           <button
             onClick={onClose}
@@ -50,7 +50,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
           {/* Predicted Cost Section */}
           <div className="bg-neutral-900 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-neutral-400">Predicted Cost</span>
+              <span className="text-sm text-neutral-400">预计费用</span>
               <span className="text-lg font-semibold text-neutral-100">
                 {formatCost(predictedCost.totalCost)}
               </span>
@@ -61,7 +61,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
                 {predictedCost.breakdown.map((item, idx) => (
                   <div key={idx} className="flex justify-between text-xs">
                     <span className="text-neutral-500">
-                      {item.count}x {item.model === "nano-banana" ? "Nano Banana" : "Nano Banana Pro"}
+                      {item.count}x {item.model === "nano-banana" ? "AI分镜画板" : "AI分镜画板 Pro"}
                       {item.model === "nano-banana-pro" && ` (${item.resolution})`}
                     </span>
                     <span className="text-neutral-400">
@@ -74,7 +74,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
 
             {predictedCost.nodeCount === 0 && (
               <p className="text-xs text-neutral-500 mt-2">
-                No generation nodes in workflow
+                工作流中没有生成节点
               </p>
             )}
           </div>
@@ -82,13 +82,13 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
           {/* Incurred Cost Section */}
           <div className="bg-neutral-900 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-neutral-400">Incurred Cost</span>
+              <span className="text-sm text-neutral-400">已产生费用</span>
               <span className="text-lg font-semibold text-green-400">
                 {formatCost(incurredCost)}
               </span>
             </div>
             <p className="text-xs text-neutral-500">
-              Actual API spend from successful generations
+              成功生成的实际 API 花费
             </p>
 
             {incurredCost > 0 && (
@@ -96,18 +96,18 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
                 onClick={handleReset}
                 className="mt-3 text-xs text-neutral-400 hover:text-red-400 transition-colors"
               >
-                Reset to $0.00
+                重置为 $0.00
               </button>
             )}
           </div>
 
           {/* Pricing Reference */}
           <div className="text-xs text-neutral-500 space-y-1">
-            <p className="font-medium text-neutral-400">Pricing Reference:</p>
-            <p>Nano Banana (Flash): ${PRICING["nano-banana"]["1K"]}/image</p>
-            <p>Nano Banana Pro 1K/2K: ${PRICING["nano-banana-pro"]["1K"]}/image</p>
-            <p>Nano Banana Pro 4K: ${PRICING["nano-banana-pro"]["4K"]}/image</p>
-            <p className="text-neutral-600 mt-2">All prices in USD</p>
+            <p className="font-medium text-neutral-400">价格参考：</p>
+            <p>AI分镜画板 (Flash)：${PRICING["nano-banana"]["1K"]}/张</p>
+            <p>AI分镜画板 Pro 1K/2K：${PRICING["nano-banana-pro"]["1K"]}/张</p>
+            <p>AI分镜画板 Pro 4K：${PRICING["nano-banana-pro"]["4K"]}/张</p>
+            <p className="text-neutral-600 mt-2">所有价格以美元计</p>
           </div>
         </div>
       </div>

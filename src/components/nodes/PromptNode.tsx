@@ -45,7 +45,7 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
     <>
       <BaseNode
         id={id}
-        title="Prompt"
+        title="提示词"
         customTitle={nodeData.customTitle}
         comment={nodeData.comment}
         onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -56,7 +56,7 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
         <textarea
           value={nodeData.prompt}
           onChange={handleChange}
-          placeholder="Describe what to generate..."
+          placeholder="描述要生成的内容..."
           className="nodrag nopan nowheel w-full flex-1 min-h-[70px] p-2 text-xs leading-relaxed text-neutral-100 border border-neutral-700 rounded bg-neutral-900/50 resize-none focus:outline-none focus:ring-1 focus:ring-neutral-600 focus:border-neutral-600 placeholder:text-neutral-500"
         />
 

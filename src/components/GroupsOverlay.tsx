@@ -316,7 +316,7 @@ function GroupControls({ groupId, zoom }: GroupControlsProps) {
             onClick={() => setShowColorPicker(!showColorPicker)}
             className="w-5 h-5 rounded border border-white/30 hover:border-white/60 transition-colors"
             style={{ backgroundColor: bgColor }}
-            title="Change color"
+            title="更改颜色"
           />
           {showColorPicker && (
             <>
@@ -385,7 +385,7 @@ function GroupControls({ groupId, zoom }: GroupControlsProps) {
         <button
           onClick={handleToggleLock}
           className="p-0.5 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-          title={group.locked ? "Unlock group" : "Lock group"}
+          title={group.locked ? "解锁组" : "锁定组"}
         >
           {group.locked ? (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -402,7 +402,7 @@ function GroupControls({ groupId, zoom }: GroupControlsProps) {
         <button
           onClick={handleDelete}
           className="p-0.5 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-          title="Delete group"
+          title="删除组"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

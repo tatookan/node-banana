@@ -198,7 +198,7 @@ export function GroupNode({ id, data, selected }: NodeProps<GroupNodeType>) {
               onClick={() => setShowColorPicker(!showColorPicker)}
               className="w-5 h-5 rounded border border-white/30 hover:border-white/60 transition-colors"
               style={{ backgroundColor: bgColor }}
-              title="Change color"
+              title="更改颜色"
             />
             {showColorPicker && (
               <div className="absolute top-full right-0 mt-1 p-2 bg-neutral-800 rounded-lg shadow-xl border border-neutral-600 grid grid-cols-4 gap-1.5 z-50">
@@ -223,7 +223,7 @@ export function GroupNode({ id, data, selected }: NodeProps<GroupNodeType>) {
           <button
             onClick={handleDelete}
             className="p-0.5 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-            title="Delete group"
+            title="删除组"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

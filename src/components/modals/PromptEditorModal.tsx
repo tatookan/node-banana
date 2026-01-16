@@ -120,7 +120,7 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <h2 className="text-xl font-semibold text-neutral-100">
-            Edit Prompt
+            编辑提示词
           </h2>
         </div>
 
@@ -146,7 +146,7 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe what to generate..."
+            placeholder="描述要生成的内容..."
             className="nodrag nopan nowheel flex-1 w-full p-6 leading-relaxed text-neutral-100 bg-transparent border-0 resize-none focus:outline-none placeholder:text-neutral-500"
             style={{ fontSize: `${fontSize}px` }}
             autoFocus
@@ -159,13 +159,13 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
             onClick={handleAttemptClose}
             className="px-4 py-2 text-sm font-medium text-neutral-300 bg-neutral-700 hover:bg-neutral-600 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-neutral-500"
           >
-            Cancel
+            取消
           </button>
           <button
             onClick={handleSubmit}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
-            Submit
+            提交
           </button>
         </div>
 
@@ -198,20 +198,20 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
               </button>
 
               <p className="text-neutral-100 text-center mb-6">
-                You have unsaved changes
+                您有未保存的更改
               </p>
               <div className="flex justify-center gap-3">
                 <button
                   onClick={onClose}
                   className="px-4 py-2 text-sm font-medium text-neutral-300 bg-neutral-700 hover:bg-neutral-600 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-neutral-500"
                 >
-                  Discard
+                  放弃
                 </button>
                 <button
                   onClick={handleSubmit}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400"
                 >
-                  Submit
+                  提交
                 </button>
               </div>
             </div>

@@ -9,12 +9,12 @@ import { NanoBananaNodeData, AspectRatio, Resolution, ModelType } from "@/types"
 // All 10 aspect ratios supported by both models
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 
-// Resolutions only for Nano Banana Pro (gemini-3-pro-image-preview)
+// Resolutions only for AI分镜画板 Pro (gemini-3-pro-image-preview)
 const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
 
 const MODELS: { value: ModelType; label: string }[] = [
-  { value: "nano-banana", label: "Nano Banana" },
-  { value: "nano-banana-pro", label: "Nano Banana Pro" },
+  { value: "nano-banana", label: "AI分镜画板" },
+  { value: "nano-banana-pro", label: "AI分镜画板 Pro" },
 ];
 
 type NanoBananaNodeType = Node<NanoBananaNodeData, "nanoBanana">;
@@ -147,7 +147,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   return (
     <BaseNode
       id={id}
-      title="Generate"
+      title="生成"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -244,7 +244,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
                 <button
                   onClick={handleClearImage}
                   className="w-5 h-5 bg-neutral-900/80 hover:bg-red-600/80 rounded flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-                  title="Clear image"
+                  title="清除图片"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -260,7 +260,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
                   onClick={handleCarouselPrevious}
                   disabled={isLoadingCarouselImage}
                   className="w-5 h-5 rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-                  title="Previous image"
+                  title="上一张图片"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -273,7 +273,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
                   onClick={handleCarouselNext}
                   disabled={isLoadingCarouselImage}
                   className="w-5 h-5 rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
-                  title="Next image"
+                  title="下一张图片"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -306,11 +306,11 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
               </svg>
             ) : nodeData.status === "error" ? (
               <span className="text-[10px] text-red-400 text-center px-2">
-                {nodeData.error || "Failed"}
+                {nodeData.error || "失败"}
               </span>
             ) : (
               <span className="text-neutral-500 text-[10px]">
-                Run to generate
+                运行以生成
               </span>
             )}
           </div>
@@ -357,7 +357,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
           )}
         </div>
 
-        {/* Google Search toggle - only for Nano Banana Pro */}
+        {/* Google Search toggle - only for AI分镜画板 Pro */}
         {isNanoBananaPro && (
           <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 shrink-0 cursor-pointer">
             <input
@@ -366,7 +366,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
               onChange={handleGoogleSearchToggle}
               className="w-3 h-3 rounded border-neutral-700 bg-neutral-900/50 text-neutral-600 focus:ring-1 focus:ring-neutral-600 focus:ring-offset-0"
             />
-            <span>Google Search</span>
+            <span>Google 搜索</span>
           </label>
         )}
       </div>

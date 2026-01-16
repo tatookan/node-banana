@@ -207,14 +207,14 @@ export function BaseNode({
                 onChange={(e) => setEditTitleValue(e.target.value)}
                 onBlur={handleTitleSubmit}
                 onKeyDown={handleTitleKeyDown}
-                placeholder="Custom title..."
+                placeholder="自定义标题..."
                 className="nodrag nopan w-full bg-transparent border-none outline-none text-xs font-semibold tracking-wide text-neutral-300 placeholder:text-neutral-500 uppercase"
               />
             ) : (
               <span
                 className="nodrag text-xs font-semibold uppercase tracking-wide text-neutral-400 cursor-text truncate inline-block max-w-full"
                 onClick={() => setIsEditingTitle(true)}
-                title="Click to edit title"
+                title="点击编辑标题"
               >
                 {customTitle ? `${customTitle} - ${title}` : title}
               </span>
@@ -223,7 +223,7 @@ export function BaseNode({
 
           {/* Lock Badge for nodes in locked groups */}
           {isInLockedGroup && (
-            <div className="ml-2 shrink-0 flex items-center" title="This node is in a locked group and will be skipped during execution">
+            <div className="ml-2 shrink-0 flex items-center" title="此节点在已锁定的组中，执行时将被跳过">
               <svg className="w-3.5 h-3.5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -242,7 +242,7 @@ export function BaseNode({
                   ? "text-blue-400 hover:text-blue-200"
                   : "text-neutral-500 hover:text-neutral-200 border border-neutral-600"
               }`}
-              title={comment ? "Edit comment" : "Add comment"}
+              title={comment ? "编辑注释" : "添加注释"}
             >
               {comment ? (
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -277,7 +277,7 @@ export function BaseNode({
                   value={editCommentValue}
                   onChange={(e) => setEditCommentValue(e.target.value)}
                   onKeyDown={handleCommentKeyDown}
-                  placeholder="Add a comment..."
+                  placeholder="添加注释..."
                   autoFocus
                   className="nodrag nopan nowheel w-full h-20 p-2 text-xs text-neutral-100 bg-neutral-900/50 border border-neutral-700 rounded resize-none focus:outline-none focus:ring-1 focus:ring-neutral-600"
                 />
@@ -308,7 +308,7 @@ export function BaseNode({
               <button
                 onClick={onExpand}
                 className="nodrag nopan p-0.5 rounded transition-all duration-200 ease-in-out text-neutral-500 group-hover:text-neutral-200 border border-neutral-600 flex items-center overflow-hidden group-hover:pr-2"
-                title="Expand editor"
+                title="展开编辑器"
               >
                 <svg
                   className="w-3.5 h-3.5 flex-shrink-0"
@@ -338,13 +338,13 @@ export function BaseNode({
                 onClick={onRun}
                 disabled={isExecuting}
                 className="nodrag nopan p-0.5 rounded transition-all duration-200 ease-in-out text-neutral-500 group-hover:text-neutral-200 border border-neutral-600 flex items-center overflow-hidden group-hover:pr-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Run this node"
+                title="运行此节点"
               >
                 <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
                 <span className="max-w-0 opacity-0 whitespace-nowrap text-[10px] transition-all duration-200 ease-in-out overflow-hidden group-hover:max-w-[60px] group-hover:opacity-100 group-hover:ml-1">
-                  Run node
+                  运行
                 </span>
               </button>
             </div>

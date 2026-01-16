@@ -25,7 +25,7 @@ export function CostIndicator() {
       <button
         onClick={() => setShowDialog(true)}
         className="px-2 py-0.5 rounded text-xs text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
-        title="View cost details"
+        title="查看费用详情"
       >
         {formatCost(predictedCost.totalCost)}
       </button>
