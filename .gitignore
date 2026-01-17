@@ -42,3 +42,18 @@ logs/*.json
 
 # .claude
 .claude/
+
+# Project specific
+# Invite codes (generated)
+invite-codes.txt
+
+# Test files
+*.mjs
+server.js
+test-*.js
+
+# Credentials (keep *.json for package.json, but ignore specific credential files)
+*-credentials.json
+*-account.json
+*service-account.json
+xinshijue-*.json
