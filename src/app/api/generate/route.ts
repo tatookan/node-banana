@@ -101,21 +101,30 @@ export async function POST(request: NextRequest) {
       responseModalities: ["IMAGE", "TEXT"],
     };
 
-    // Add imageConfig for both models (both support aspect ratio)
+    // Build imageConfig - both models support aspect ratio, Pro supports additional features
+    // JavaScript SDK 使用 camelCase，Cloudflare Worker 会转换为 snake_case
+    const imageConfig: any = {};
+
     if (aspectRatio) {
-      config.imageConfig = {
-        aspectRatio,
-      };
-      console.log(`[API:${requestId}]   Added aspect ratio: ${aspectRatio}`);
+      imageConfig.aspectRatio = aspectRatio;
+      console.log(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
     }
 
     // Add resolution only for Nano Banana Pro
     if (model === "nano-banana-pro" && resolution) {
-      if (!config.imageConfig) {
-        config.imageConfig = {};
-      }
-      config.imageConfig.imageSize = resolution;
-      console.log(`[API:${requestId}]   Added resolution: ${resolution}`);
+      imageConfig.imageSize = resolution;
+      console.log(`[API:${requestId}]   Added imageSize: ${resolution}`);
+    }
+
+    // Add outputMimeType for Pro
+    if (model === "nano-banana-pro") {
+      imageConfig.outputMimeType = "image/png";
+      console.log(`[API:${requestId}]   Added outputMimeType: image/png`);
+    }
+
+    // Add imageConfig to config if it has any properties
+    if (Object.keys(imageConfig).length > 0) {
+      config.imageConfig = imageConfig;
     }
 
     // Add tools array for Google Search (only Nano Banana Pro)
