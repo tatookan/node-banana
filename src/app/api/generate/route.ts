@@ -32,9 +32,15 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API:${requestId}] Initializing Google GenAI client with API Key (Vertex AI mode)...`);
 
+    // Use Cloudflare Worker as proxy for Vertex AI API
+    const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
+
     const ai = new GoogleGenAI({
       vertexai: true,
       apiKey: apiKey,
+      httpOptions: {
+        baseUrl: cloudflareWorkerUrl,
+      },
     });
 
     console.log(`[API:${requestId}] Parsing request body...`);

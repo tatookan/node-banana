@@ -16,6 +16,7 @@
     "@tailwindcss/postcss": "^4.1.17",
     "@xyflow/react": "^12.9.3",
     "autoprefixer": "^10.4.22",
+    "https-proxy-agent": "^7.0.6",
     "jszip": "^3.10.1",
     "konva": "^10.0.12",
     "next": "^16.0.6",
@@ -24,6 +25,7 @@
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.1",
     "tailwindcss": "^4.1.17",
+    "undici": "^7.18.2",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
