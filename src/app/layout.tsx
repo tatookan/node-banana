@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toast } from "@/components/Toast";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Node Banana - AI 分镜画板",
@@ -15,8 +16,10 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="antialiased" suppressHydrationWarning>
-        {children}
-        <Toast />
+        <AuthProvider>
+          {children}
+          <Toast />
+        </AuthProvider>
       </body>
     </html>
   );
