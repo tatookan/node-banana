@@ -28,7 +28,7 @@ export function QuickstartInitialView({
           </div>
 
           <p className="text-sm text-neutral-400 leading-relaxed mb-6">
-            一个基于节点的 AI 图像生成工作流编辑器。连接节点来构建转换和生成图像的流程。
+            AI 图像生成工作流分镜画板。用于AI真人、精品剧等创作。
           </p>
 
           <div className="flex flex-col gap-2.5 mt-auto">
