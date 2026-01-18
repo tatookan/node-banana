@@ -126,7 +126,7 @@ class CacheManager {
   /**
    * Save generation result to cache
    */
-  async save(data: Omit<CachedGeneration, "id">): Promise<string> {
+  async save(data: Omit<CachedGeneration, "id" | "timestamp" | "expiresAt">): Promise<string> {
     await this.ensureInit();
 
     const cacheKey: CacheKeyData = {
