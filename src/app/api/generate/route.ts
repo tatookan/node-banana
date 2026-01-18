@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { GenerateRequest, GenerateResponse, ModelType, Resolution } from "@/types";
 import { recordImageGeneration, getUserIdFromToken } from "@/lib/usageTracker";
+import { uploadGeneratedImageInBackground } from "@/lib/r2-upload";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -249,14 +250,23 @@ export async function POST(request: NextRequest) {
 
         console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
 
-        // Record usage statistics
+        // Upload to R2 in background (fire-and-forget, doesn't block response)
         const token = request.cookies.get('auth_token')?.value;
         if (token) {
           const userId = await getUserIdFromToken(token);
           if (userId) {
+            // Record usage statistics
             // nano-banana only supports 1K resolution
             const actualResolution: Resolution = model === "nano-banana" ? "1K" : (resolution || "1K");
             await recordImageGeneration(userId, model, actualResolution, 1);
+
+            // Upload to R2 in background
+            uploadGeneratedImageInBackground(userId, dataUrl, {
+              prompt,
+              model,
+              aspectRatio,
+              resolution: actualResolution,
+            });
           }
         }
 

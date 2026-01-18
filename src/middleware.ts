@@ -9,6 +9,7 @@ const publicRoutes = [
   '/api/auth/logout',
   '/api/auth/verify',
   '/api/auth/me',
+  '/api/r2/test', // R2 connection test endpoint (for debugging)
 ];
 
 export function middleware(request: NextRequest) {

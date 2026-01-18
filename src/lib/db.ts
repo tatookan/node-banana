@@ -89,8 +89,41 @@ export async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // Create user_images table for R2 cloud storage metadata
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_images (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      image_key VARCHAR(500) NOT NULL,
+      image_type ENUM('input', 'generation', 'annotation', 'output') NOT NULL,
+      file_size INT NOT NULL COMMENT 'File size in bytes',
+      is_favorite BOOLEAN DEFAULT FALSE COMMENT 'User favorited this image',
+      -- Generation metadata
+      prompt TEXT NULL,
+      model VARCHAR(50) NULL,
+      aspect_ratio VARCHAR(10) NULL,
+      resolution VARCHAR(10) NULL,
+      -- Workflow context
+      workflow_id VARCHAR(100) NULL,
+      node_id VARCHAR(100) NULL,
+      -- Timestamps
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      -- Foreign keys and indexes
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY uk_image_key (image_key),
+      INDEX idx_user_type (user_id, image_type),
+      INDEX idx_created_at (created_at),
+      INDEX idx_workflow (workflow_id, node_id),
+      INDEX idx_favorite (user_id, is_favorite)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // Migrate existing api_usage table if needed
   await migrateApiUsageTable();
+
+  // Migrate user_images table for favorites
+  await migrateUserImagesTable();
 
   console.log('[Database] Tables initialized');
 }
@@ -175,6 +208,48 @@ async function migrateApiUsageTable() {
     } else {
       console.error('[Database Migration] Error:', error);
       // Don't throw - migration errors shouldn't prevent app startup
+    }
+  }
+}
+
+// Migration function to add is_favorite column to user_images table
+async function migrateUserImagesTable() {
+  const pool = getPool();
+
+  try {
+    // Check if user_images table exists
+    const [tables] = await pool.execute('SHOW TABLES LIKE "user_images"');
+
+    if ((tables as any[]).length === 0) {
+      return;
+    }
+
+    // Get existing columns
+    const [columns] = await pool.execute('DESCRIBE user_images');
+    const existingColumns = (columns as any[]).map((row) => row.Field);
+    console.log('[Database Migration] Existing user_images columns:', existingColumns);
+
+    // Add is_favorite column if missing
+    if (!existingColumns.includes('is_favorite')) {
+      console.log('[Database Migration] Adding column: is_favorite to user_images');
+      await pool.execute('ALTER TABLE user_images ADD COLUMN is_favorite BOOLEAN DEFAULT FALSE AFTER file_size');
+    }
+
+    // Add idx_favorite index if missing
+    const [indexes] = await pool.execute('SHOW INDEX FROM user_images');
+    const existingIndexNames = (indexes as any[]).map((row) => row.Key_name);
+
+    if (!existingIndexNames.includes('idx_favorite')) {
+      console.log('[Database Migration] Adding index: idx_favorite');
+      await pool.execute('ALTER TABLE user_images ADD INDEX idx_favorite (user_id, is_favorite)');
+    }
+
+    console.log('[Database Migration] user_images table migration complete');
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
+      console.log('[Database Migration] Column or index already exists, skipping');
+    } else {
+      console.error('[Database Migration] Error:', error);
     }
   }
 }
