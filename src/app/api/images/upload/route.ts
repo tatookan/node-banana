@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createR2Client, uploadImageToR2, generateImageKey, extractExtensionFromDataUrl, extractFileSizeFromDataUrl, ImageType } from '@/lib/r2';
-import { query } from '@/lib/db';
+import { execute } from '@/lib/db';
 
 interface UploadRequest {
   image: string; // Base64 data URL
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     await uploadImageToR2(client, imageKey, body.image);
 
     // Save metadata to database
-    await query(
+    await execute(
       `INSERT INTO user_images (
         user_id, image_key, image_type, file_size,
         prompt, model, aspect_ratio, resolution,

@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 import { deleteImageFromR2, createR2Client } from '@/lib/r2';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           const currentFavorite = images[0].is_favorite;
           const newFavorite = body.favorite !== undefined ? body.favorite : !currentFavorite;
 
-          await query(
+          await execute(
             `UPDATE user_images SET is_favorite = ? WHERE image_key = ? AND user_id = ?`,
             [newFavorite, imageKey, userId]
           );

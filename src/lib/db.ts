@@ -31,6 +31,22 @@ export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> 
   return rows as T[];
 }
 
+/**
+ * Execute SQL statement (INSERT, UPDATE, DELETE)
+ * Returns the full result including insertId, affectedRows
+ */
+export async function execute(sql: string, params?: any[]): Promise<mysql.OkPacket> {
+  // Auto-initialize database on first query
+  if (!initDone) {
+    await initDatabase();
+    initDone = true;
+  }
+
+  const pool = getPool();
+  const [result] = await pool.execute(sql, params);
+  return result as mysql.OkPacket;
+}
+
 export async function initDatabase() {
   const pool = getPool();
 

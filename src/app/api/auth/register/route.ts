@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 import { generateToken } from '@/lib/jwt';
 
 export const runtime = 'nodejs';
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Insert user
-    const result = await query<any>(
+    const result = await execute(
       'INSERT INTO users (username, email, password_hash, invite_code) VALUES (?, ?, ?, ?)',
       [username, email, passwordHash, inviteCode.toUpperCase()]
     );

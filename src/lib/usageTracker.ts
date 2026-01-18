@@ -1,4 +1,4 @@
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 import { calculateGenerationCost } from '@/utils/costCalculator';
 import type { ModelType, Resolution, LLMProvider, LLMModelType } from '@/types';
 
@@ -18,7 +18,7 @@ export async function recordImageGeneration(
   try {
     const cost = calculateGenerationCost(model, resolution) * count;
 
-    await query(
+    await execute(
       `INSERT INTO api_usage (
         user_id,
         images_generated,
@@ -75,7 +75,7 @@ export async function recordLLMUsage(
         return 0;
       })();
 
-    await query(
+    await execute(
       `INSERT INTO api_usage (
         user_id,
         tokens_used,

@@ -6,7 +6,7 @@
  */
 
 import { createR2Client, uploadImageToR2, generateImageKey, extractExtensionFromDataUrl, extractFileSizeFromDataUrl, ImageType } from '@/lib/r2';
-import { query } from '@/lib/db';
+import { execute } from '@/lib/db';
 
 export interface UploadResult {
   success: boolean;
@@ -55,7 +55,7 @@ export async function uploadGeneratedImage(
     await uploadImageToR2(client, imageKey, imageDataUrl);
 
     // Save metadata to database
-    await query(
+    await execute(
       `INSERT INTO user_images (
         user_id, image_key, image_type, file_size,
         prompt, model, aspect_ratio, resolution,

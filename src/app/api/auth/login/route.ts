@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 import { generateToken } from '@/lib/jwt';
 
 export const runtime = 'nodejs';
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update last login
-    await query(
+    await execute(
       'UPDATE users SET last_login = NOW() WHERE id = ?',
       [user.id]
     );
