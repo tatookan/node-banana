@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 
 let pool: mysql.Pool | null = null;
+let initDone = false;
 
 export function getPool() {
   if (!pool) {
@@ -19,6 +20,12 @@ export function getPool() {
 }
 
 export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
+  // Auto-initialize database on first query
+  if (!initDone) {
+    await initDatabase();
+    initDone = true;
+  }
+
   const pool = getPool();
   const [rows] = await pool.execute(sql, params);
   return rows as T[];
@@ -57,5 +64,117 @@ export async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // Create api_usage table for tracking image generation and LLM usage
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS api_usage (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      -- Image generation fields
+      images_generated INT DEFAULT 0,
+      image_model VARCHAR(50) NULL,
+      image_resolution VARCHAR(10) NULL,
+      -- LLM usage fields
+      tokens_used INT DEFAULT 0,
+      llm_provider VARCHAR(20) NULL,
+      llm_model VARCHAR(50) NULL,
+      -- Cost tracking
+      cost DECIMAL(10, 4) DEFAULT 0,
+      -- Timestamp
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      -- Foreign keys and indexes
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_user_created (user_id, created_at),
+      INDEX idx_image_model (image_model, image_resolution),
+      INDEX idx_llm_model (llm_provider, llm_model)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // Migrate existing api_usage table if needed
+  await migrateApiUsageTable();
+
   console.log('[Database] Tables initialized');
+}
+
+// Migration function to add missing columns to api_usage table
+async function migrateApiUsageTable() {
+  const pool = getPool();
+
+  try {
+    // Check if api_usage table exists and get its structure
+    const [rows] = await pool.execute('SHOW TABLES LIKE "api_usage"');
+
+    if ((rows as any[]).length === 0) {
+      // Table doesn't exist yet, will be created by CREATE TABLE IF NOT EXISTS above
+      return;
+    }
+
+    // Get existing columns
+    const [columns] = await pool.execute('DESCRIBE api_usage');
+    const existingColumns = (columns as any[]).map((row) => row.Field);
+    console.log('[Database Migration] Existing api_usage columns:', existingColumns);
+
+    // Columns that need to be added
+    const migrations: Array<{ column: string; definition: string; after: string }> = [
+      { column: 'image_model', definition: 'VARCHAR(50) NULL', after: 'images_generated' },
+      { column: 'image_resolution', definition: 'VARCHAR(10) NULL', after: 'image_model' },
+      { column: 'tokens_used', definition: 'INT DEFAULT 0', after: 'image_resolution' },
+      { column: 'llm_provider', definition: 'VARCHAR(20) NULL', after: 'tokens_used' },
+      { column: 'llm_model', definition: 'VARCHAR(50) NULL', after: 'llm_provider' },
+      { column: 'cost', definition: 'DECIMAL(10, 4) DEFAULT 0', after: 'llm_model' },
+    ];
+
+    for (const migration of migrations) {
+      if (!existingColumns.includes(migration.column)) {
+        // Find the correct "after" column - use the first existing column in our order
+        let afterColumn = migration.after;
+        if (!existingColumns.includes(afterColumn)) {
+          // Fallback to last existing column
+          afterColumn = existingColumns[existingColumns.length - 1];
+        }
+
+        const alterSql = `ALTER TABLE api_usage ADD COLUMN ${migration.column} ${migration.definition} AFTER ${afterColumn}`;
+        console.log(`[Database Migration] Adding column: ${migration.column}`);
+        await pool.execute(alterSql);
+      }
+    }
+
+    // Remove old columns that are no longer used
+    const oldColumnsToRemove = ['model', 'api_type'];
+    for (const column of oldColumnsToRemove) {
+      if (existingColumns.includes(column)) {
+        try {
+          const dropSql = `ALTER TABLE api_usage DROP COLUMN ${column}`;
+          console.log(`[Database Migration] Removing old column: ${column}`);
+          await pool.execute(dropSql);
+        } catch (err: any) {
+          // If we can't drop the column, log but don't fail
+          console.log(`[Database Migration] Could not drop column ${column}:`, err.message);
+        }
+      }
+    }
+
+    // Check and add indexes
+    const [indexes] = await pool.execute('SHOW INDEX FROM api_usage');
+    const existingIndexNames = (indexes as any[]).map((row) => row.Key_name);
+
+    if (!existingIndexNames.includes('idx_image_model')) {
+      console.log('[Database Migration] Adding index: idx_image_model');
+      await pool.execute('ALTER TABLE api_usage ADD INDEX idx_image_model (image_model, image_resolution)');
+    }
+
+    if (!existingIndexNames.includes('idx_llm_model')) {
+      console.log('[Database Migration] Adding index: idx_llm_model');
+      await pool.execute('ALTER TABLE api_usage ADD INDEX idx_llm_model (llm_provider, llm_model)');
+    }
+
+    console.log('[Database Migration] api_usage table migration complete');
+  } catch (error: any) {
+    // If the error is about duplicate column/index, it's okay - just means it already exists
+    if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
+      console.log('[Database Migration] Column or index already exists, skipping');
+    } else {
+      console.error('[Database Migration] Error:', error);
+      // Don't throw - migration errors shouldn't prevent app startup
+    }
+  }
 }

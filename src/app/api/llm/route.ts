@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { LLMGenerateRequest, LLMGenerateResponse, LLMModelType } from "@/types";
 import { logger } from "@/utils/logger";
+import { recordLLMUsage, getUserIdFromToken } from "@/lib/usageTracker";
 
 export const maxDuration = 60; // 1 minute timeout
 
@@ -271,6 +272,17 @@ export async function POST(request: NextRequest) {
       requestId,
       responseLength: text.length,
     });
+
+    // Record usage statistics
+    const token = request.cookies.get('auth_token')?.value;
+    if (token) {
+      const userId = await getUserIdFromToken(token);
+      if (userId) {
+        // Estimate token count (rough approximation: ~4 chars per token)
+        const estimatedTokens = Math.ceil((prompt.length + text.length) / 4);
+        await recordLLMUsage(userId, provider, model, estimatedTokens);
+      }
+    }
 
     return NextResponse.json<LLMGenerateResponse>({
       success: true,

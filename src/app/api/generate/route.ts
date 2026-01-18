@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import { GenerateRequest, GenerateResponse, ModelType } from "@/types";
+import { GenerateRequest, GenerateResponse, ModelType, Resolution } from "@/types";
+import { recordImageGeneration, getUserIdFromToken } from "@/lib/usageTracker";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -218,6 +219,17 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
+
+        // Record usage statistics
+        const token = request.cookies.get('auth_token')?.value;
+        if (token) {
+          const userId = await getUserIdFromToken(token);
+          if (userId) {
+            // nano-banana only supports 1K resolution
+            const actualResolution: Resolution = model === "nano-banana" ? "1K" : (resolution || "1K");
+            await recordImageGeneration(userId, model, actualResolution, 1);
+          }
+        }
 
         // Create response with explicit headers to handle large payloads
         const response = NextResponse.json<GenerateResponse>(responsePayload);

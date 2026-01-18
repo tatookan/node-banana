@@ -1,54 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-interface TimeStats {
-  date: string;
-  images: number;
-  tokens: number;
-}
-
-interface StatsData {
-  today: TimeStats;
-  week: TimeStats[];
-  month: TimeStats[];
-  totals: {
-    images: number;
-    tokens: number;
-  };
-}
-
-interface StatsResponse {
-  success: boolean;
-  error?: string;
-  stats?: StatsData;
-}
+import type {
+  StatsData,
+  StatsResponse,
+  ImageStatsBreakdown,
+  LLMStatsBreakdown,
+  TimeStats,
+} from "@/types/stats";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type TimeRange = "today" | "week" | "month" | "custom";
+
 export function StatsModal({ isOpen, onClose }: Props) {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"week" | "month">("week");
+  const [view, setView] = useState<"week" | "month" | "custom">("week");
+  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
+
+  // Custom date range
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       fetchStats();
     }
-  }, [isOpen]);
+  }, [isOpen, view, startDate, endDate]);
 
   const fetchStats = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/stats", {
+      const params = new URLSearchParams();
+      if (view === "custom" && startDate && endDate) {
+        params.append("startDate", startDate);
+        params.append("endDate", endDate);
+      }
+
+      const response = await fetch(`/api/stats?${params.toString()}`, {
         credentials: "include",
       });
       const data: StatsResponse = await response.json();
+
       if (data.success && data.stats) {
         setStats(data.stats);
       } else {
@@ -61,13 +60,79 @@ export function StatsModal({ isOpen, onClose }: Props) {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append("format", exportFormat);
+
+      // If custom date range is selected and has dates, use those
+      // Otherwise use the current view's date range
+      if (view === "custom" && startDate && endDate) {
+        params.append("startDate", startDate);
+        params.append("endDate", endDate);
+      } else if (view === "week") {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        params.append("startDate", weekAgo.toISOString().split("T")[0]);
+        params.append("endDate", new Date().toISOString().split("T")[0]);
+      } else if (view === "month") {
+        const monthAgo = new Date();
+        monthAgo.setDate(monthAgo.getDate() - 29);
+        params.append("startDate", monthAgo.toISOString().split("T")[0]);
+        params.append("endDate", new Date().toISOString().split("T")[0]);
+      }
+
+      const response = await fetch(`/api/export?${params.toString()}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("导出失败");
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `usage-stats.${exportFormat}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
+      }
+
+      // Download file
+      const blob = exportFormat === "csv"
+        ? new Blob([await response.text()], { type: "text/csv" })
+        : new Blob([await response.text()], { type: "application/json" });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("导出失败，请重试");
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
+  const formatCost = (cost: number) => {
+    return `$${cost.toFixed(2)}`;
+  };
+
   const getMaxValue = (data: TimeStats[], type: "images" | "tokens") => {
     return Math.max(...data.map((d) => d[type]), 1);
+  };
+
+  const getCurrentData = (): TimeStats[] => {
+    if (!stats) return [];
+    if (view === "custom" && stats.custom) return stats.custom;
+    return view === "week" ? stats.week : stats.month;
   };
 
   if (!isOpen) return null;
@@ -78,9 +143,10 @@ export function StatsModal({ isOpen, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto border border-neutral-700"
+        className="bg-neutral-900 rounded-lg p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto border border-neutral-700"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">使用统计</h2>
           <button
@@ -99,10 +165,10 @@ export function StatsModal({ isOpen, onClose }: Props) {
           <div className="text-center py-8 text-red-400">{error}</div>
         ) : stats ? (
           <div className="space-y-6">
-            {/* Today's stats */}
+            {/* Today's quick stats */}
             <div className="bg-neutral-800 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-neutral-400 mb-3">今日</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <h3 className="text-sm font-medium text-neutral-400 mb-3">今日概览</h3>
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <div className="text-2xl font-semibold text-white">{stats.today.images}</div>
                   <div className="text-xs text-neutral-500">生成图片</div>
@@ -111,13 +177,17 @@ export function StatsModal({ isOpen, onClose }: Props) {
                   <div className="text-2xl font-semibold text-white">{stats.today.tokens.toLocaleString()}</div>
                   <div className="text-xs text-neutral-500">使用 Token</div>
                 </div>
+                <div>
+                  <div className="text-2xl font-semibold text-white">{formatCost(stats.today.cost)}</div>
+                  <div className="text-xs text-neutral-500">今日成本</div>
+                </div>
               </div>
             </div>
 
             {/* Totals */}
             <div className="bg-neutral-800 rounded-lg p-4">
               <h3 className="text-sm font-medium text-neutral-400 mb-3">总计</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <div className="text-2xl font-semibold text-white">{stats.totals.images}</div>
                   <div className="text-xs text-neutral-500">生成图片</div>
@@ -126,14 +196,58 @@ export function StatsModal({ isOpen, onClose }: Props) {
                   <div className="text-2xl font-semibold text-white">{stats.totals.tokens.toLocaleString()}</div>
                   <div className="text-xs text-neutral-500">使用 Token</div>
                 </div>
+                <div>
+                  <div className="text-2xl font-semibold text-white">{formatCost(stats.totals.cost)}</div>
+                  <div className="text-xs text-neutral-500">总成本</div>
+                </div>
               </div>
             </div>
 
-            {/* Chart */}
+            {/* Image breakdown */}
+            {stats.breakdown.images.length > 0 && (
+              <div className="bg-neutral-800 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-neutral-400 mb-3">图片生成详情</h3>
+                <div className="space-y-2">
+                  {stats.breakdown.images.map((item: ImageStatsBreakdown, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-300">
+                        {item.model} ({item.resolution})
+                      </span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-white font-medium">{item.count} 张</span>
+                        <span className="text-neutral-500">{formatCost(item.cost)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* LLM breakdown */}
+            {stats.breakdown.llm.length > 0 && (
+              <div className="bg-neutral-800 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-neutral-400 mb-3">LLM 使用详情</h3>
+                <div className="space-y-2">
+                  {stats.breakdown.llm.map((item: LLMStatsBreakdown, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-300">
+                        {item.provider} - {item.model}
+                      </span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-white font-medium">{item.tokens.toLocaleString()} tokens</span>
+                        <span className="text-neutral-500">{formatCost(item.cost)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chart with time range selector */}
             <div className="bg-neutral-800 rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-neutral-400">趋势</h3>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setView("week")}
                     className={`text-xs px-3 py-1 rounded transition-colors ${
@@ -154,6 +268,27 @@ export function StatsModal({ isOpen, onClose }: Props) {
                   >
                     30天
                   </button>
+                  <div className="flex items-center gap-1 ml-2">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setView("custom");
+                      }}
+                      className="bg-neutral-700 text-neutral-300 text-xs px-2 py-1 rounded border border-neutral-600 focus:outline-none focus:border-neutral-500"
+                    />
+                    <span className="text-neutral-500">-</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setView("custom");
+                      }}
+                      className="bg-neutral-700 text-neutral-300 text-xs px-2 py-1 rounded border border-neutral-600 focus:outline-none focus:border-neutral-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -164,8 +299,8 @@ export function StatsModal({ isOpen, onClose }: Props) {
                     <span className="text-xs text-neutral-500">生成图片</span>
                   </div>
                   <div className="flex items-end gap-1 h-24">
-                    {(view === "week" ? stats.week : stats.month).map((day) => {
-                      const maxImages = getMaxValue(view === "week" ? stats.week : stats.month, "images");
+                    {getCurrentData().map((day) => {
+                      const maxImages = getMaxValue(getCurrentData(), "images");
                       const height = maxImages > 0 ? (day.images / maxImages) * 100 : 0;
                       return (
                         <div
@@ -192,8 +327,8 @@ export function StatsModal({ isOpen, onClose }: Props) {
                     <span className="text-xs text-neutral-500">使用 Token</span>
                   </div>
                   <div className="flex items-end gap-1 h-24">
-                    {(view === "week" ? stats.week : stats.month).map((day) => {
-                      const maxTokens = getMaxValue(view === "week" ? stats.week : stats.month, "tokens");
+                    {getCurrentData().map((day) => {
+                      const maxTokens = getMaxValue(getCurrentData(), "tokens");
                       const height = maxTokens > 0 ? (day.tokens / maxTokens) * 100 : 0;
                       return (
                         <div
@@ -212,6 +347,29 @@ export function StatsModal({ isOpen, onClose }: Props) {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Export section */}
+            <div className="bg-neutral-800 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-neutral-400">导出数据</h3>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value as "csv" | "json")}
+                    className="bg-neutral-700 text-neutral-300 text-xs px-2 py-1 rounded border border-neutral-600 focus:outline-none focus:border-neutral-500"
+                  >
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                  </select>
+                  <button
+                    onClick={handleExport}
+                    className="text-xs px-3 py-1 bg-neutral-700 text-neutral-300 rounded hover:bg-neutral-600 hover:text-white transition-colors"
+                  >
+                    导出
+                  </button>
                 </div>
               </div>
             </div>
