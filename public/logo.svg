@@ -1,0 +1,11 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Heart shape -->
+  <path d="M16 28C16 28 4 20 4 10C4 6 7 3 10 3C12 3 14 4 16 6C18 4 20 3 22 3C25 3 28 6 28 10C28 20 16 28 16 28Z"
+        stroke="white" stroke-width="2" fill="none"/>
+
+  <!-- Eye pupil -->
+  <circle cx="16" cy="13" r="4" fill="white"/>
+
+  <!-- Small highlight in eye -->
+  <circle cx="17" cy="12" r="1.5" fill="#1a1a1a"/>
+</svg>
