@@ -27,6 +27,7 @@ export type LogCategory =
   | 'connection.validation'
   | 'state.change'
   | 'cache.hit'
+  | 'cache.miss'
   | 'system';
 
 export interface LogEntry {
