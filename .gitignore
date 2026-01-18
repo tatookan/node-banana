@@ -57,3 +57,6 @@ test-*.js
 *-account.json
 *service-account.json
 xinshijue-*.json新API调用方法.md
+r2_cloud_storage_plan.md
+r2_findings.md
+r2_progress.md
