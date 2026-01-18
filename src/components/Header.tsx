@@ -316,7 +316,7 @@ export function Header() {
           )}
           <span className="text-neutral-500 ml-2">·</span>
           <a
-            href="https://x.com/ReflctWillie"
+            href="https://xinshijue"
             target="_blank"
             rel="noopener noreferrer"
             className="text-neutral-400 hover:text-neutral-200 transition-colors"
@@ -325,7 +325,7 @@ export function Header() {
           </a>
           <span className="text-neutral-500">·</span>
           <a
-            href="https://x.com/ReflctWillie"
+            href="https://xinshijue"
             target="_blank"
             rel="noopener noreferrer"
             className="text-neutral-400 hover:text-neutral-200 transition-colors"
