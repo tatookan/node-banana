@@ -11,6 +11,9 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+# Use Taobao npm registry for faster downloads in China
+RUN npm config set registry https://registry.npmmirror.com
+
 # Copy package files
 COPY package.json package-lock.json* ./
 # Install all dependencies (including devDependencies for build)
