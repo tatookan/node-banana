@@ -1,16 +1,22 @@
 # Node Banana - Production Dockerfile
 # Multi-stage build for optimized image size
 
-# Stage 1: Dependencies
+# Stage 1: Base dependencies
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Stage 2: Dependencies
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
 
-# Stage 2: Builder
+# Stage 3: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
 
@@ -38,7 +44,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 
 RUN npm run build
 
-# Stage 3: Runner
+# Stage 4: Runner
 FROM node:20-alpine AS runner
 WORKDIR /app
 
