@@ -33,8 +33,8 @@ ARG JWT_SECRET
 ARG OPENAI_API_KEY
 
 # Set build-time environment variables
-ENV NEXT_TELEMETRY_DISABLED=1
-NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
 
 RUN npm run build
 
@@ -42,8 +42,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
-NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
 
 # Add non-root user
 RUN addgroup --system --gid 1001 nodejs
