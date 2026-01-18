@@ -11,6 +11,7 @@ import { query } from '@/lib/db';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createR2Client, getTransformedUrl } from '@/lib/r2';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { verifyToken } from '@/lib/jwt';
 
 interface ListResponse {
   success: boolean;
@@ -42,8 +43,24 @@ export async function GET(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7);
 
   try {
-    // Get user ID from JWT (simplified - use your actual auth)
-    const userId = 2; // TODO: Replace with actual JWT verification
+    // Get user ID from JWT token
+    const token = request.cookies.get('auth_token')?.value;
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      );
+    }
+
+    const payload = verifyToken(token);
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, error: '登录已过期' },
+        { status: 401 }
+      );
+    }
+
+    const userId = payload.userId;
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
