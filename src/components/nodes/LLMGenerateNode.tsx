@@ -5,6 +5,7 @@ import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { LLMGenerateNodeData, LLMProvider, LLMModelType } from "@/types";
+import { cacheManager } from "@/lib/cacheManager";
 
 const PROVIDERS: { value: LLMProvider; label: string }[] = [
   { value: "google", label: "Google" },
@@ -211,6 +212,45 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
             className="w-full h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-neutral-400"
           />
         </div>
+
+        {/* Seed controls */}
+        {nodeData.lastSeed && (
+          <div className="flex flex-col gap-1 shrink-0 border-t border-neutral-700 pt-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] text-neutral-500">
+                Seed: {nodeData.lastSeed}
+              </span>
+              {nodeData.seedFixed && nodeData.cached && (
+                <span className="text-[9px] text-green-400">💾 缓存</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  updateNodeData(id, { seedFixed: !nodeData.seedFixed, cached: false });
+                }}
+                className={`flex-1 text-[9px] px-2 py-0.5 rounded transition-colors ${
+                  nodeData.seedFixed
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                }`}
+              >
+                {nodeData.seedFixed ? "📌 固定" : "🎲 随机"}
+              </button>
+              <button
+                onClick={() => {
+                  cacheManager.clearByNode(id).then(() => {
+                    updateNodeData(id, { seedFixed: false, cached: false, lastSeed: undefined });
+                  });
+                }}
+                className="text-[9px] px-1.5 py-0.5 bg-neutral-800 text-neutral-400 hover:bg-neutral-700 rounded transition-colors"
+                title="清除缓存"
+              >
+                🗑
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </BaseNode>
   );

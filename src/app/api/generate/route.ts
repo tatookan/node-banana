@@ -12,6 +12,9 @@ const MODEL_MAP: Record<ModelType, string> = {
   "nano-banana-pro": "gemini-3-pro-image-preview",
 };
 
+// Maximum number of input images allowed (Gemini API limit)
+const MAX_IMAGES = 14;
+
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7);
   console.log(`\n[API:${requestId}] ========== NEW GENERATE REQUEST ==========`);
@@ -45,7 +48,20 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(`[API:${requestId}] Parsing request body...`);
-    const body: GenerateRequest = await request.json();
+
+    let body: GenerateRequest;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error(`[API:${requestId}] ❌ JSON parse error:`, parseError);
+      return NextResponse.json<GenerateResponse>(
+        {
+          success: false,
+          error: "Request body too large or malformed. Please reduce the number or size of input images (max 14 images, each under 5MB recommended).",
+        },
+        { status: 413 }
+      );
+    }
     const { images, prompt, model = "nano-banana-pro", aspectRatio, resolution, useGoogleSearch } = body;
 
     const modelId = MODEL_MAP[model];
@@ -56,6 +72,19 @@ export async function POST(request: NextRequest) {
     console.log(`[API:${requestId}]   - Aspect Ratio: ${aspectRatio || 'default'}`);
     console.log(`[API:${requestId}]   - Resolution: ${resolution || 'default'}`);
     console.log(`[API:${requestId}]   - Google Search: ${useGoogleSearch || false}`);
+
+    // Validate image count limit
+    const imageCount = images?.length || 0;
+    if (imageCount > MAX_IMAGES) {
+      console.error(`[API:${requestId}] ❌ Validation failed: too many images (${imageCount} > ${MAX_IMAGES})`);
+      return NextResponse.json<GenerateResponse>(
+        {
+          success: false,
+          error: `Maximum ${MAX_IMAGES} images allowed. You provided ${imageCount} images.`,
+        },
+        { status: 400 }
+      );
+    }
 
     if (!prompt) {
       console.error(`[API:${requestId}] ❌ Validation failed: missing prompt`);

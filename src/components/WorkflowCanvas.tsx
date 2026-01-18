@@ -52,12 +52,20 @@ const edgeTypes: EdgeTypes = {
   reference: ReferenceEdge,
 };
 
+// Maximum number of input images for image generation nodes
+const MAX_INPUT_IMAGES = 14;
+
 // Connection validation rules
 // - Image handles (green) can only connect to image handles
 // - Text handles (blue) can only connect to text handles
-// - NanoBanana image input accepts multiple connections
+// - NanoBanana image input accepts multiple connections (max 14)
+// - LLMGenerate image input accepts multiple connections (max 14)
 // - All other inputs accept only one connection
-const isValidConnection = (connection: Edge | Connection): boolean => {
+const isValidConnection = (
+  connection: Edge | Connection,
+  edges: Edge[] = [],
+  nodes: Node[] = []
+): boolean => {
   const sourceHandle = connection.sourceHandle;
   const targetHandle = connection.targetHandle;
 
@@ -81,6 +89,28 @@ const isValidConnection = (connection: Edge | Connection): boolean => {
       reason: 'Cannot connect text handle to non-text handle',
     });
     return false;
+  }
+
+  // Check image input limit for nanoBanana and llmGenerate nodes
+  if (targetHandle === "image" && nodes.length > 0) {
+    const targetNode = nodes.find(n => n.id === connection.target);
+    if (targetNode && (targetNode.type === "nanoBanana" || targetNode.type === "llmGenerate")) {
+      // Count existing image input connections to this node
+      const existingImageConnections = edges.filter(
+        e => e.target === connection.target && e.targetHandle === "image"
+      ).length;
+
+      if (existingImageConnections >= MAX_INPUT_IMAGES) {
+        logger.warn('connection.validation', 'Connection validation failed: too many image inputs', {
+          target: connection.target,
+          nodeType: targetNode.type,
+          existingCount: existingImageConnections,
+          maxAllowed: MAX_INPUT_IMAGES,
+          reason: `Maximum ${MAX_INPUT_IMAGES} image inputs allowed`,
+        });
+        return false;
+      }
+    }
   }
 
   return true;
@@ -244,7 +274,7 @@ export function WorkflowCanvas() {
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      if (!isValidConnection(connection)) return;
+      if (!isValidConnection(connection, edges, nodes)) return;
 
       // Get all selected nodes
       const selectedNodes = nodes.filter((node) => node.selected);
@@ -275,7 +305,7 @@ export function WorkflowCanvas() {
             targetHandle: connection.targetHandle,
           };
 
-          if (isValidConnection(multiConnection)) {
+          if (isValidConnection(multiConnection, edges, nodes)) {
             onConnect(multiConnection);
           }
         });
@@ -284,7 +314,7 @@ export function WorkflowCanvas() {
         onConnect(connection);
       }
     },
-    [onConnect, nodes]
+    [onConnect, nodes, edges]
   );
 
   // Handle connection dropped on empty space or on a node
@@ -348,7 +378,7 @@ export function WorkflowCanvas() {
                     targetHandle: fromHandleId,
                   };
 
-              if (isValidConnection(connection)) {
+              if (isValidConnection(connection, edges, nodes)) {
                 handleConnect(connection);
                 return; // Connection made, don't show menu
               }
@@ -369,7 +399,7 @@ export function WorkflowCanvas() {
         sourceHandleId: fromHandleId,
       });
     },
-    [screenToFlowPosition, nodes, getNodeHandles, handleConnect]
+    [screenToFlowPosition, nodes, edges, getNodeHandles, handleConnect]
   );
 
   // Handle the splitGrid action - uses automated grid detection
@@ -544,7 +574,7 @@ export function WorkflowCanvas() {
               target: newNodeId,
               targetHandle: targetHandleId,
             };
-            if (isValidConnection(connection)) {
+            if (isValidConnection(connection, edges, nodes)) {
               onConnect(connection);
             }
           } else if (connectionType === "target" && sourceHandleIdForNewNode) {
@@ -555,7 +585,7 @@ export function WorkflowCanvas() {
               target: node.id,
               targetHandle: sourceHandleId,
             };
-            if (isValidConnection(connection)) {
+            if (isValidConnection(connection, edges, nodes)) {
               onConnect(connection);
             }
           }
@@ -585,7 +615,7 @@ export function WorkflowCanvas() {
 
       setConnectionDrop(null);
     },
-    [connectionDrop, addNode, onConnect, nodes, handleSplitGridAction, getImageFromNode, updateNodeData]
+    [connectionDrop, addNode, onConnect, nodes, edges, handleSplitGridAction, getImageFromNode, updateNodeData]
   );
 
   const handleCloseDropMenu = useCallback(() => {

@@ -147,6 +147,11 @@ export interface NanoBananaNodeData extends BaseNodeData {
   error: string | null;
   imageHistory: CarouselImageItem[]; // Carousel history (IDs only)
   selectedHistoryIndex: number; // Currently selected image in carousel
+  // Seed & Cache fields
+  seed?: number;           // Current seed value
+  seedFixed?: boolean;     // Whether seed is fixed by user
+  lastSeed?: number;       // Last used seed (for display)
+  cached?: boolean;        // Whether current output is from cache
 }
 
 // LLM Generate Node Data (Text Generation)
@@ -161,6 +166,11 @@ export interface LLMGenerateNodeData extends BaseNodeData {
   maxTokens: number;
   status: NodeStatus;
   error: string | null;
+  // Seed & Cache fields
+  seed?: number;           // Current seed value
+  seedFixed?: boolean;     // Whether seed is fixed by user
+  lastSeed?: number;       // Last used seed (for display)
+  cached?: boolean;        // Whether current output is from cache
 }
 
 // Output Node Data

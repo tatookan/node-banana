@@ -30,6 +30,7 @@ import { useToast } from "@/components/Toast";
 import { calculateGenerationCost } from "@/utils/costCalculator";
 import { logger } from "@/utils/logger";
 import { externalizeWorkflowImages, hydrateWorkflowImages } from "@/utils/imageStorage";
+import { cacheManager, generateCacheKey, type CacheKeyData } from "@/lib/cacheManager";
 
 export type EdgeStyle = "angular" | "curved";
 
@@ -976,6 +977,59 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             try {
               const nodeData = node.data as NanoBananaNodeData;
 
+              // Generate or use existing seed
+              const currentSeed = nodeData.seedFixed && nodeData.lastSeed
+                ? nodeData.lastSeed
+                : Math.floor(Math.random() * 2147483647);
+
+              // Check cache if seed is fixed
+              if (nodeData.seedFixed && nodeData.lastSeed) {
+                const cacheKeyData: CacheKeyData = {
+                  nodeId: node.id,
+                  nodeType: "nanoBanana",
+                  inputs: {
+                    model: nodeData.model,
+                    resolution: nodeData.resolution,
+                    aspectRatio: nodeData.aspectRatio,
+                    prompt: text,
+                    imageCount: images.length,
+                  },
+                  seed: nodeData.lastSeed,
+                };
+
+                const cached = await cacheManager.get(cacheKeyData);
+                if (cached) {
+                  logger.info('cache.hit', 'Using cached generation', {
+                    nodeId: node.id,
+                    seed: nodeData.lastSeed,
+                  });
+
+                  const timestamp = Date.now();
+                  const imageId = `${timestamp}`;
+
+                  // Update node with cached data
+                  updateNodeData(node.id, {
+                    outputImage: cached.output.image,
+                    status: "complete",
+                    error: null,
+                    cached: true,
+                  });
+
+                  break; // Skip API call
+                } else {
+                  logger.info('cache.miss', 'Cache miss, calling API', {
+                    nodeId: node.id,
+                    seed: nodeData.lastSeed,
+                  });
+                }
+              }
+
+              // Update seed before API call
+              updateNodeData(node.id, {
+                lastSeed: currentSeed,
+                seed: currentSeed,
+              });
+
               const requestPayload = {
                 images,
                 prompt: text,
@@ -992,6 +1046,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 resolution: nodeData.resolution,
                 imageCount: images.length,
                 prompt: text,
+                seed: currentSeed,
               });
 
               const response = await fetch("/api/generate", {
@@ -1059,6 +1114,29 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                   error: null,
                   imageHistory: updatedHistory,
                   selectedHistoryIndex: 0,
+                });
+
+                // Save to cache
+                const cacheKeyData: CacheKeyData = {
+                  nodeId: node.id,
+                  nodeType: "nanoBanana",
+                  inputs: {
+                    model: nodeData.model,
+                    resolution: nodeData.resolution,
+                    aspectRatio: nodeData.aspectRatio,
+                    prompt: text,
+                    imageCount: images.length,
+                  },
+                  seed: currentSeed,
+                };
+                await cacheManager.save({
+                  nodeId: node.id,
+                  nodeType: "nanoBanana",
+                  inputs: cacheKeyData.inputs,
+                  seed: currentSeed,
+                  output: {
+                    image: result.image,
+                  },
                 });
 
                 // Track cost
@@ -1148,6 +1226,55 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             try {
               const nodeData = node.data as LLMGenerateNodeData;
 
+              // Generate or use existing seed
+              const currentSeed = nodeData.seedFixed && nodeData.lastSeed
+                ? nodeData.lastSeed
+                : Math.floor(Math.random() * 2147483647);
+
+              // Check cache if seed is fixed
+              if (nodeData.seedFixed && nodeData.lastSeed) {
+                const cacheKeyData: CacheKeyData = {
+                  nodeId: node.id,
+                  nodeType: "llmGenerate",
+                  inputs: {
+                    provider: nodeData.provider,
+                    model: nodeData.model,
+                    temperature: nodeData.temperature,
+                    prompt: text,
+                    imageCount: images.length,
+                  },
+                  seed: nodeData.lastSeed,
+                };
+
+                const cached = await cacheManager.get(cacheKeyData);
+                if (cached) {
+                  logger.info('cache.hit', 'Using cached LLM generation', {
+                    nodeId: node.id,
+                    seed: nodeData.lastSeed,
+                  });
+
+                  updateNodeData(node.id, {
+                    outputText: cached.output.text,
+                    status: "complete",
+                    error: null,
+                    cached: true,
+                  });
+
+                  break; // Skip API call
+                } else {
+                  logger.info('cache.miss', 'Cache miss, calling LLM API', {
+                    nodeId: node.id,
+                    seed: nodeData.lastSeed,
+                  });
+                }
+              }
+
+              // Update seed before API call
+              updateNodeData(node.id, {
+                lastSeed: currentSeed,
+                seed: currentSeed,
+              });
+
               logger.info('api.llm', 'Calling LLM API', {
                 nodeId: node.id,
                 provider: nodeData.provider,
@@ -1156,6 +1283,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 maxTokens: nodeData.maxTokens,
                 hasImages: images.length > 0,
                 prompt: text,
+                seed: currentSeed,
               });
 
               const response = await fetch("/api/llm", {
@@ -1201,6 +1329,29 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                   outputText: result.text,
                   status: "complete",
                   error: null,
+                });
+
+                // Save to cache
+                const cacheKeyData: CacheKeyData = {
+                  nodeId: node.id,
+                  nodeType: "llmGenerate",
+                  inputs: {
+                    provider: nodeData.provider,
+                    model: nodeData.model,
+                    temperature: nodeData.temperature,
+                    prompt: text,
+                    imageCount: images.length,
+                  },
+                  seed: currentSeed,
+                };
+                await cacheManager.save({
+                  nodeId: node.id,
+                  nodeType: "llmGenerate",
+                  inputs: cacheKeyData.inputs,
+                  seed: currentSeed,
+                  output: {
+                    text: result.text,
+                  },
                 });
               } else {
                 logger.error('api.error', 'LLM generation failed', {
