@@ -623,7 +623,7 @@ export function WorkflowCanvas() {
     setConnectionDrop(null);
   }, []);
 
-  // Custom wheel handler for macOS trackpad support
+  // Custom wheel handler for zoom and pan
   const handleWheel = useCallback((event: React.WheelEvent) => {
     // Check if scrolling over a scrollable element (e.g., textarea, scrollable div)
     const target = event.target as HTMLElement;
@@ -637,8 +637,20 @@ export function WorkflowCanvas() {
     // Pinch gesture (ctrlKey) always zooms
     if (event.ctrlKey) {
       event.preventDefault();
-      if (event.deltaY < 0) zoomIn();
-      else zoomOut();
+      const viewport = getViewport();
+      const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+      const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
+
+      // Calculate mouse position relative to the viewport container
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      // Adjust viewport to zoom towards mouse position
+      const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
+      const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+
+      setViewport({ x: newX, y: newY, zoom: newZoom });
       return;
     }
 
@@ -646,10 +658,22 @@ export function WorkflowCanvas() {
     if (isMacOS) {
       const nativeEvent = event.nativeEvent;
       if (isMouseWheel(nativeEvent)) {
-        // Mouse wheel → zoom
+        // Mouse wheel → zoom towards mouse position
         event.preventDefault();
-        if (event.deltaY < 0) zoomIn();
-        else zoomOut();
+        const viewport = getViewport();
+        const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+        const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
+
+        // Calculate mouse position relative to the viewport container
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // Adjust viewport to zoom towards mouse position
+        const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
+        const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+
+        setViewport({ x: newX, y: newY, zoom: newZoom });
       } else {
         // Trackpad scroll → pan
         event.preventDefault();
@@ -663,11 +687,23 @@ export function WorkflowCanvas() {
       return;
     }
 
-    // Non-macOS: default zoom behavior
+    // Non-macOS: zoom towards mouse position
     event.preventDefault();
-    if (event.deltaY < 0) zoomIn();
-    else zoomOut();
-  }, [zoomIn, zoomOut, getViewport, setViewport]);
+    const viewport = getViewport();
+    const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+    const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
+
+    // Calculate mouse position relative to the viewport container
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    // Adjust viewport to zoom towards mouse position
+    const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
+    const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+
+    setViewport({ x: newX, y: newY, zoom: newZoom });
+  }, [getViewport, setViewport]);
 
   // Get copy/paste functions and clipboard from store
   const { copySelectedNodes, pasteNodes, clearClipboard, clipboard } = useWorkflowStore();
@@ -1137,8 +1173,8 @@ export function WorkflowCanvas() {
         fitView
         deleteKeyCode={["Backspace", "Delete"]}
         multiSelectionKeyCode="Shift"
-        selectionOnDrag={isMacOS && !isModalOpen}
-        panOnDrag={!isMacOS && !isModalOpen}
+        selectionOnDrag={false}
+        panOnDrag={!isModalOpen}
         selectNodesOnDrag={false}
         nodeDragThreshold={5}
         zoomOnScroll={false}
