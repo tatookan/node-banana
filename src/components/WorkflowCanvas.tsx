@@ -630,13 +630,16 @@ export function WorkflowCanvas() {
     const scrollableElement = findScrollableAncestor(target, event.deltaX, event.deltaY);
 
     if (scrollableElement) {
-      // Let the element handle its own scroll - don't prevent default or manipulate viewport
+      // Let the element handle its own scroll - but prevent default to stop page scroll
+      event.preventDefault();
       return;
     }
 
+    // Prevent page scroll when interacting with canvas
+    event.preventDefault();
+
     // Pinch gesture (ctrlKey) always zooms
     if (event.ctrlKey) {
-      event.preventDefault();
       const viewport = getViewport();
       const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
       const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
@@ -659,7 +662,6 @@ export function WorkflowCanvas() {
       const nativeEvent = event.nativeEvent;
       if (isMouseWheel(nativeEvent)) {
         // Mouse wheel → zoom towards mouse position
-        event.preventDefault();
         const viewport = getViewport();
         const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
         const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
@@ -676,7 +678,6 @@ export function WorkflowCanvas() {
         setViewport({ x: newX, y: newY, zoom: newZoom });
       } else {
         // Trackpad scroll → pan
-        event.preventDefault();
         const viewport = getViewport();
         setViewport({
           x: viewport.x - event.deltaX,
@@ -688,7 +689,6 @@ export function WorkflowCanvas() {
     }
 
     // Non-macOS: zoom towards mouse position
-    event.preventDefault();
     const viewport = getViewport();
     const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
     const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
