@@ -638,71 +638,34 @@ export function WorkflowCanvas() {
     // Prevent page scroll when interacting with canvas
     event.preventDefault();
 
-    // Pinch gesture (ctrlKey) always zooms
-    if (event.ctrlKey) {
-      const viewport = getViewport();
-      const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
-      const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
-
-      // Calculate mouse position relative to the viewport container
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      const mouseX = event.clientX - rect.left;
-      const mouseY = event.clientY - rect.top;
-
-      // Adjust viewport to zoom towards mouse position
-      const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
-      const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
-
-      setViewport({ x: newX, y: newY, zoom: newZoom });
-      return;
-    }
-
-    // On macOS, differentiate trackpad from mouse
-    if (isMacOS) {
-      const nativeEvent = event.nativeEvent;
-      if (isMouseWheel(nativeEvent)) {
-        // Mouse wheel → zoom towards mouse position
-        const viewport = getViewport();
-        const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
-        const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
-
-        // Calculate mouse position relative to the viewport container
-        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Adjust viewport to zoom towards mouse position
-        const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
-        const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
-
-        setViewport({ x: newX, y: newY, zoom: newZoom });
-      } else {
-        // Trackpad scroll → pan
-        const viewport = getViewport();
-        setViewport({
-          x: viewport.x - event.deltaX,
-          y: viewport.y - event.deltaY,
-          zoom: viewport.zoom,
-        });
-      }
-      return;
-    }
-
-    // Non-macOS: zoom towards mouse position
+    // Get current viewport state
     const viewport = getViewport();
-    const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
-    const newZoom = Math.min(Math.max(viewport.zoom * zoomFactor, 0.1), 4);
+    const { x: panX, y: panY, zoom: currentZoom } = viewport;
 
-    // Calculate mouse position relative to the viewport container
+    // Calculate mouse position relative to the container
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
 
-    // Adjust viewport to zoom towards mouse position
-    const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
-    const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+    // Calculate the world coordinates (flow coordinates) that the mouse is pointing to
+    const worldX = (screenX - panX) / currentZoom;
+    const worldY = (screenY - panY) / currentZoom;
 
-    setViewport({ x: newX, y: newY, zoom: newZoom });
+    // Calculate new zoom level
+    let newZoom = currentZoom;
+    const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+    newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 4);
+
+    // Pinch gesture (ctrlKey) or mouse wheel or regular scroll - all zoom to cursor
+    // Calculate new pan position so the world coordinate under mouse stays at mouse position
+    const newPanX = screenX - worldX * newZoom;
+    const newPanY = screenY - worldY * newZoom;
+
+    setViewport({
+      x: newPanX,
+      y: newPanY,
+      zoom: newZoom
+    });
   }, [getViewport, setViewport]);
 
   // Get copy/paste functions and clipboard from store
