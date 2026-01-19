@@ -97,6 +97,12 @@ interface WorkflowStore {
   decrementModalCount: () => void;
   setShowQuickstart: (show: boolean) => void;
 
+  // Image Preview
+  imagePreviewSrc: string | null;
+  imagePreviewAlt: string;
+  openImagePreview: (src: string, alt?: string) => void;
+  closeImagePreview: () => void;
+
   // Execution
   isRunning: boolean;
   currentNodeId: string | null;
@@ -352,6 +358,10 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   // Cost tracking initial state
   incurredCost: 0,
 
+  // Image Preview initial state
+  imagePreviewSrc: null,
+  imagePreviewAlt: "",
+
   setEdgeStyle: (style: EdgeStyle) => {
     set({ edgeStyle: style });
   },
@@ -372,6 +382,14 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
   setShowQuickstart: (show: boolean) => {
     set({ showQuickstart: show });
+  },
+
+  openImagePreview: (src: string, alt?: string) => {
+    set({ imagePreviewSrc: src, imagePreviewAlt: alt || "图片预览" });
+  },
+
+  closeImagePreview: () => {
+    set({ imagePreviewSrc: null, imagePreviewAlt: "" });
   },
 
   addNode: (type: NodeType, position: XYPosition) => {

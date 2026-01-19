@@ -24,6 +24,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const generationsPath = useWorkflowStore((state) => state.generationsPath);
+  const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
 
   const handleAspectRatioChange = useCallback(
@@ -191,7 +192,9 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
               <img
                 src={nodeData.outputImage}
                 alt="Generated"
-                className="w-full h-full object-contain rounded"
+                className="w-full h-full object-contain rounded cursor-pointer hover:opacity-90 transition-opacity"
+                onDoubleClick={() => openImagePreview(nodeData.outputImage!, "生成的图片")}
+                title="双击查看大图"
               />
               {/* Loading overlay for generation */}
               {nodeData.status === "loading" && (

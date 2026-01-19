@@ -36,6 +36,7 @@ import { NodeType, NanoBananaNodeData } from "@/types";
 import { detectAndSplitGrid } from "@/utils/gridSplitter";
 import { logger } from "@/utils/logger";
 import { WelcomeModal } from "./quickstart";
+import { ImagePreviewModal } from "./ImagePreviewModal";
 
 const nodeTypes: NodeTypes = {
   imageInput: ImageInputNode,
@@ -218,7 +219,7 @@ const findScrollableAncestor = (target: HTMLElement, deltaX: number, deltaY: num
 };
 
 export function WorkflowCanvas() {
-  const { nodes, edges, groups, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, loadWorkflow, getNodeById, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, setShowQuickstart } =
+  const { nodes, edges, groups, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, loadWorkflow, getNodeById, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, setShowQuickstart, imagePreviewSrc, imagePreviewAlt, closeImagePreview } =
     useWorkflowStore();
   const { screenToFlowPosition, getViewport, zoomIn, zoomOut, setViewport } = useReactFlow();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1206,6 +1207,14 @@ export function WorkflowCanvas() {
 
       {/* Global image history */}
       <GlobalImageHistory />
+
+      {/* Global image preview modal */}
+      <ImagePreviewModal
+        isOpen={imagePreviewSrc !== null}
+        imageSrc={imagePreviewSrc}
+        alt={imagePreviewAlt}
+        onClose={closeImagePreview}
+      />
     </div>
   );
 }

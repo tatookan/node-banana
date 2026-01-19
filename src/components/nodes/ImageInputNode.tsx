@@ -11,6 +11,7 @@ type ImageInputNodeType = Node<ImageInputNodeData, "imageInput">;
 export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeType>) {
   const nodeData = data;
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
+  const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = useCallback(
@@ -109,7 +110,9 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
           <img
             src={nodeData.image}
             alt={nodeData.filename || "上传的图片"}
-            className="w-full flex-1 min-h-0 object-contain rounded"
+            className="w-full flex-1 min-h-0 object-contain rounded cursor-pointer hover:opacity-90 transition-opacity"
+            onDoubleClick={() => openImagePreview(nodeData.image!, nodeData.filename || "上传的图片")}
+            title="双击查看大图"
           />
           <button
             onClick={handleRemove}

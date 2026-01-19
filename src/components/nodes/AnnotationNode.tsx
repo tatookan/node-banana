@@ -13,6 +13,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
   const nodeData = data;
   const openModal = useAnnotationStore((state) => state.openModal);
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
+  const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = useCallback(
@@ -126,6 +127,11 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
             src={displayImage}
             alt="Annotated"
             className="w-full flex-1 min-h-0 object-contain rounded"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              openImagePreview(displayImage, "标注的图片");
+            }}
+            title="单击编辑 • 双击查看大图"
           />
           <button
             onClick={(e) => {
