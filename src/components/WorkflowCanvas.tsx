@@ -786,21 +786,40 @@ export function WorkflowCanvas() {
               const reader = new FileReader();
               reader.onload = (e) => {
                 const dataUrl = e.target?.result as string;
-                const viewport = getViewport();
-                const centerX = (-viewport.x + window.innerWidth / 2) / viewport.zoom;
-                const centerY = (-viewport.y + window.innerHeight / 2) / viewport.zoom;
 
-                const img = new Image();
-                img.onload = () => {
-                  // ImageInput node default dimensions: 300x280
-                  const nodeId = addNode("imageInput", { x: centerX - 150, y: centerY - 140 });
-                  updateNodeData(nodeId, {
-                    image: dataUrl,
-                    filename: `pasted-${Date.now()}.png`,
-                    dimensions: { width: img.width, height: img.height },
-                  });
-                };
-                img.src = dataUrl;
+                // Check if there's a selected ImageInputNode to fill
+                const selectedImageNodes = nodes.filter(n => n.selected && n.type === "imageInput");
+
+                if (selectedImageNodes.length > 0) {
+                  // Fill the first selected image node
+                  const targetNode = selectedImageNodes[0];
+                  const img = new Image();
+                  img.onload = () => {
+                    updateNodeData(targetNode.id, {
+                      image: dataUrl,
+                      filename: `pasted-${Date.now()}.png`,
+                      dimensions: { width: img.width, height: img.height },
+                    });
+                  };
+                  img.src = dataUrl;
+                } else {
+                  // Create new image input node at center
+                  const viewport = getViewport();
+                  const centerX = (-viewport.x + window.innerWidth / 2) / viewport.zoom;
+                  const centerY = (-viewport.y + window.innerHeight / 2) / viewport.zoom;
+
+                  const img = new Image();
+                  img.onload = () => {
+                    // ImageInput node default dimensions: 300x280
+                    const nodeId = addNode("imageInput", { x: centerX - 150, y: centerY - 140 });
+                    updateNodeData(nodeId, {
+                      image: dataUrl,
+                      filename: `pasted-${Date.now()}.png`,
+                      dimensions: { width: img.width, height: img.height },
+                    });
+                  };
+                  img.src = dataUrl;
+                }
               };
               reader.readAsDataURL(blob);
               return; // Exit after handling image
