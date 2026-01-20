@@ -215,3 +215,20 @@ body {
 .animate-fan-exit {
   animation: fanExit 0.15s ease-in forwards;
 }
+
+/* Allow text selection in LLM Generate nodes - override React Flow's default user-select: none */
+.react-flow__node[data-type="llmGenerate"] > div {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+.react-flow__node[data-type="llmGenerate"] > div * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+/* Exclude interactive elements from text selection */
+.react-flow__node[data-type="llmGenerate"] button,
+.react-flow__node[data-type="llmGenerate"] input,
+.react-flow__node[data-type="llmGenerate"] select,
+.react-flow__node[data-type="llmGenerate"] textarea {
+  user-select: auto !important;
+}

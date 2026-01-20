@@ -139,9 +139,11 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
             </span>
           ) : nodeData.outputText ? (
             <>
-              <p className="text-[10px] text-neutral-300 whitespace-pre-wrap break-words pr-6">
-                {nodeData.outputText}
-              </p>
+              <textarea
+                readOnly
+                value={nodeData.outputText}
+                className="nodrag nopan nowheel w-full h-full min-h-[80px] text-[10px] text-neutral-300 whitespace-pre-wrap break-words pr-6 bg-transparent border-none resize-none focus:outline-none"
+              />
               <div className="absolute top-1 right-1 flex gap-1">
                 <button
                   onClick={handleRegenerate}
