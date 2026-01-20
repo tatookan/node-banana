@@ -193,6 +193,11 @@ export function QuickstartTemplatesView({
                   <div className="text-[10px] text-neutral-500 truncate">
                     {preset.description}
                   </div>
+                  {preset.author && (
+                    <div className="text-[10px] text-blue-400/80">
+                      @{preset.author}
+                    </div>
+                  )}
                 </div>
               </button>
             ))}
