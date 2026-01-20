@@ -15,8 +15,8 @@ const TARGET_COUNT_OPTIONS = [4, 6, 8, 9, 10] as const;
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
 const MODELS: { value: ModelType; label: string }[] = [
-  { value: "nano-banana", label: "nano-banana-Flash" },
-  { value: "nano-banana-pro", label: "nano-banana-pro" },
+  { value: "nano-banana", label: "nano-banana-Flash（pro 1/4价格，速度快）" },
+  { value: "nano-banana-pro", label: "nano-banana-pro（满血版）" },
 ];
 
 // Calculate grid dimensions from target count
@@ -279,35 +279,33 @@ export function SplitGridSettingsModal({
                 </select>
               </div>
 
-              {isNanoBananaPro && (
-                <>
-                  <div>
-                    <label className="block text-xs text-neutral-500 mb-1">
-                      分辨率
-                    </label>
-                    <select
-                      value={resolution}
-                      onChange={(e) => setResolution(e.target.value as Resolution)}
-                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-600 rounded text-neutral-100 text-sm focus:outline-none focus:border-neutral-500"
-                    >
-                      {RESOLUTIONS.map((res) => (
-                        <option key={res} value={res}>{res}</option>
-                      ))}
-                    </select>
-                  </div>
+              <div>
+                <label className="block text-xs text-neutral-500 mb-1">
+                  分辨率
+                </label>
+                <select
+                  value={resolution}
+                  onChange={(e) => setResolution(e.target.value as Resolution)}
+                  className="w-full px-3 py-2 bg-neutral-900 border border-neutral-600 rounded text-neutral-100 text-sm focus:outline-none focus:border-neutral-500"
+                >
+                  {RESOLUTIONS.map((res) => (
+                    <option key={res} value={res}>{res}</option>
+                  ))}
+                </select>
+              </div>
 
-                  <div className="flex items-end pb-2">
-                    <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useGoogleSearch}
-                        onChange={(e) => setUseGoogleSearch(e.target.checked)}
-                        className="w-4 h-4 rounded border-neutral-600 bg-neutral-900"
-                      />
-                      Google 搜索
-                    </label>
-                  </div>
-                </>
+              {isNanoBananaPro && (
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useGoogleSearch}
+                      onChange={(e) => setUseGoogleSearch(e.target.checked)}
+                      className="w-4 h-4 rounded border-neutral-600 bg-neutral-900"
+                    />
+                    Google 搜索
+                  </label>
+                </div>
               )}
             </div>
           </div>

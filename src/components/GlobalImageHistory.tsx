@@ -185,7 +185,7 @@ function HistorySidebar({
                 {item.prompt?.substring(0, 60) || "无提示词"}
               </p>
               <p className="text-[10px] text-neutral-500 mt-0.5">
-                {formatRelativeTime(item.timestamp)} · {item.model === "nano-banana-pro" ? "nano-banana-pro" : "nano-banana-Flash"}
+                {formatRelativeTime(item.timestamp)} · {item.model === "nano-banana-pro" ? "nano-banana-pro" : "Flash"}
               </p>
             </div>
           </div>

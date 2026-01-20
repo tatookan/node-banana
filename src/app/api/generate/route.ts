@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 // Map model types to Gemini model IDs
 const MODEL_MAP: Record<ModelType, string> = {
-  "nano-banana": "gemini-2.0-flash-exp",
+  "nano-banana": "gemini-2.5-flash-image",
   "nano-banana-pro": "gemini-3-pro-image-preview",
 };
 
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       responseModalities: ["IMAGE", "TEXT"],
     };
 
-    // Build imageConfig - both models support aspect ratio, Pro supports additional features
+    // Build imageConfig - both models support aspect ratio, resolution, and outputMimeType
     // JavaScript SDK 使用 camelCase，Cloudflare Worker 会转换为 snake_case
     const imageConfig: any = {};
 
@@ -141,24 +141,22 @@ export async function POST(request: NextRequest) {
       console.log(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
     }
 
-    // Add resolution only for Nano Banana Pro
-    if (model === "nano-banana-pro" && resolution) {
+    // Add resolution for both models
+    if (resolution) {
       imageConfig.imageSize = resolution;
       console.log(`[API:${requestId}]   Added imageSize: ${resolution}`);
     }
 
-    // Add outputMimeType for Pro
-    if (model === "nano-banana-pro") {
-      imageConfig.outputMimeType = "image/png";
-      console.log(`[API:${requestId}]   Added outputMimeType: image/png`);
-    }
+    // Add outputMimeType for both models
+    imageConfig.outputMimeType = "image/png";
+    console.log(`[API:${requestId}]   Added outputMimeType: image/png`);
 
     // Add imageConfig to config if it has any properties
     if (Object.keys(imageConfig).length > 0) {
       config.imageConfig = imageConfig;
     }
 
-    // Add tools array for Google Search (only Nano Banana Pro)
+    // Add tools array for Google Search (only nano-banana-pro)
     const tools = [];
     if (model === "nano-banana-pro" && useGoogleSearch) {
       tools.push({ googleSearch: {} });
@@ -256,8 +254,7 @@ export async function POST(request: NextRequest) {
           const userId = await getUserIdFromToken(token);
           if (userId) {
             // Record usage statistics
-            // nano-banana only supports 1K resolution
-            const actualResolution: Resolution = model === "nano-banana" ? "1K" : (resolution || "1K");
+            const actualResolution: Resolution = resolution || "1K";
             await recordImageGeneration(userId, model, actualResolution, 1);
 
             // Upload to R2 in background

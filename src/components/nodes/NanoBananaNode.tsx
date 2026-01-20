@@ -14,8 +14,8 @@ const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", 
 const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
 
 const MODELS: { value: ModelType; label: string }[] = [
-  { value: "nano-banana", label: "nano-banana-Flash" },
-  { value: "nano-banana-pro", label: "nano-banana-pro" },
+  { value: "nano-banana", label: "nano-banana-Flash（pro 1/4价格，速度快）" },
+  { value: "nano-banana-pro", label: "nano-banana-pro（满血版）" },
 ];
 
 type NanoBananaNodeType = Node<NanoBananaNodeData, "nanoBanana">;
@@ -346,22 +346,20 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
               </option>
             ))}
           </select>
-          {isNanoBananaPro && (
-            <select
-              value={nodeData.resolution}
-              onChange={handleResolutionChange}
-              className="w-12 text-[10px] py-1 px-1.5 border border-neutral-700 rounded bg-neutral-900/50 focus:outline-none focus:ring-1 focus:ring-neutral-600 text-neutral-300"
-            >
-              {RESOLUTIONS.map((res) => (
-                <option key={res} value={res}>
-                  {res}
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            value={nodeData.resolution}
+            onChange={handleResolutionChange}
+            className="w-12 text-[10px] py-1 px-1.5 border border-neutral-700 rounded bg-neutral-900/50 focus:outline-none focus:ring-1 focus:ring-neutral-600 text-neutral-300"
+          >
+            {RESOLUTIONS.map((res) => (
+              <option key={res} value={res}>
+                {res}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Google Search toggle - only for AI分镜画板 Pro */}
+        {/* Google Search toggle - only for nano-banana-pro */}
         {isNanoBananaPro && (
           <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 shrink-0 cursor-pointer">
             <input

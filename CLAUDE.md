@@ -62,7 +62,7 @@ All application state lives in `workflowStore.ts` using Zustand. Key patterns:
 ## AI Models
 
 Image generation models (these exist and are recently released):
-- `gemini-2.5-flash-preview-image-generation` → internal name: `nano-banana`
+- `gemini-2.5-flash-image` → internal name: `nano-banana`
 - `gemini-3-pro-image-preview` → internal name: `nano-banana-pro`
 
 LLM models:

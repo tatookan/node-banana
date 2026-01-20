@@ -4,7 +4,7 @@ import { ModelType, Resolution, NanoBananaNodeData, SplitGridNodeData, WorkflowN
 export const PRICING = {
   "nano-banana": {
     "1K": 0.039,
-    "2K": 0.039, // nano-banana only supports 1K
+    "2K": 0.039,
     "4K": 0.039,
   },
   "nano-banana-pro": {
@@ -15,11 +15,7 @@ export const PRICING = {
 } as const;
 
 export function calculateGenerationCost(model: ModelType, resolution: Resolution): number {
-  // nano-banana only supports 1K resolution
-  if (model === "nano-banana") {
-    return PRICING["nano-banana"]["1K"];
-  }
-  return PRICING["nano-banana-pro"][resolution];
+  return PRICING[model][resolution];
 }
 
 export interface CostBreakdownItem {
@@ -45,7 +41,7 @@ export function calculatePredictedCost(nodes: WorkflowNode[]): PredictedCostResu
     if (node.type === "nanoBanana") {
       const data = node.data as NanoBananaNodeData;
       const model = data.model;
-      const resolution = model === "nano-banana" ? "1K" : data.resolution;
+      const resolution = data.resolution;
       const unitCost = calculateGenerationCost(model, resolution);
       const key = `${model}-${resolution}`;
 
@@ -65,7 +61,7 @@ export function calculatePredictedCost(nodes: WorkflowNode[]): PredictedCostResu
       const data = node.data as SplitGridNodeData;
       if (data.isConfigured && data.targetCount > 0) {
         const model = data.generateSettings.model;
-        const resolution = model === "nano-banana" ? "1K" : data.generateSettings.resolution;
+        const resolution = data.generateSettings.resolution;
         const unitCost = calculateGenerationCost(model, resolution);
         const key = `splitGrid-${model}-${resolution}`;
 
