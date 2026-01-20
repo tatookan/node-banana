@@ -2211,7 +2211,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
   // Server workflow management
   saveToServer: async (name?: string, description?: string, folderId?: number | null) => {
-    const { nodes, edges, groups, serverWorkflowId, viewport } = get();
+    const { nodes, edges, groups, serverWorkflowId } = get();
 
     // Use provided name or current server workflow name
     const workflowName = name || get().serverWorkflowName || "未命名工作流";
@@ -2225,7 +2225,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         nodes,
         edges,
         groups: Object.keys(groups).length > 0 ? groups : {},
-        viewport: viewport || { x: 0, y: 0, zoom: 1 },
+        viewport: { x: 0, y: 0, zoom: 1 },
       };
 
       if (serverWorkflowId) {
