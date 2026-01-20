@@ -210,7 +210,7 @@ export function QuickstartTemplatesView({
         {/* Community Workflows */}
         <div className="space-y-3">
           <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-            社区工作流
+            工作流
           </h3>
 
           {isLoadingList ? (

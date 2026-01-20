@@ -46,6 +46,19 @@ function deriveNameFromFilename(filename: string): string {
 }
 
 /**
+ * Get Chinese name for community workflows
+ */
+function getChineseName(filename: string): string {
+  const nameMap: Record<string, string> = {
+    "contact-sheet-ChrisWalkman.json": "克里斯·沃克曼",
+    "contact-sheet-billsSupra.json": "比尔 supra",
+    "contact-sheet-jpow.json": "鲍威尔",
+    "contact-sheet-tim.json": "蒂姆",
+  };
+  return nameMap[filename] || deriveNameFromFilename(filename);
+}
+
+/**
  * GET: List all community workflows from the examples directory
  */
 export async function GET() {
@@ -76,9 +89,9 @@ export async function GET() {
 
         return {
           id: filename.replace(/\.json$/, ""),
-          name: deriveNameFromFilename(filename),
+          name: getChineseName(filename),
           filename,
-          author: "Willie",
+          author: "心视觉",
           size: stats.size,
         };
       })
