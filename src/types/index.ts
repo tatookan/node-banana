@@ -321,6 +321,7 @@ export interface WorkflowFolder {
   color: string;
   sort_order: number;
   created_at: string;
+  workflow_count?: number;  // API 返回的工作流数量
 }
 
 // 创建文件夹请求
