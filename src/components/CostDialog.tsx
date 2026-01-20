@@ -61,7 +61,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
                 {predictedCost.breakdown.map((item, idx) => (
                   <div key={idx} className="flex justify-between text-xs">
                     <span className="text-neutral-500">
-                      {item.count}x {item.model === "nano-banana" ? "AI分镜画板" : "AI分镜画板 Pro"}
+                      {item.count}x {item.model === "nano-banana" ? "nano-banana-Flash" : "nano-banana-pro"}
                       {item.model === "nano-banana-pro" && ` (${item.resolution})`}
                     </span>
                     <span className="text-neutral-400">
@@ -104,9 +104,9 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
           {/* Pricing Reference */}
           <div className="text-xs text-neutral-500 space-y-1">
             <p className="font-medium text-neutral-400">价格参考：</p>
-            <p>AI分镜画板 (Flash)：${PRICING["nano-banana"]["1K"]}/张</p>
-            <p>AI分镜画板 Pro 1K/2K：${PRICING["nano-banana-pro"]["1K"]}/张</p>
-            <p>AI分镜画板 Pro 4K：${PRICING["nano-banana-pro"]["4K"]}/张</p>
+            <p>nano-banana-Flash：${PRICING["nano-banana"]["1K"]}/张</p>
+            <p>nano-banana-pro 1K/2K：${PRICING["nano-banana-pro"]["1K"]}/张</p>
+            <p>nano-banana-pro 4K：${PRICING["nano-banana-pro"]["4K"]}/张</p>
             <p className="text-neutral-600 mt-2">所有价格以美元计</p>
           </div>
         </div>

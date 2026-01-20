@@ -14,8 +14,8 @@ const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", 
 const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
 
 const MODELS: { value: ModelType; label: string }[] = [
-  { value: "nano-banana", label: "AI分镜画板" },
-  { value: "nano-banana-pro", label: "AI分镜画板 Pro" },
+  { value: "nano-banana", label: "nano-banana-Flash" },
+  { value: "nano-banana-pro", label: "nano-banana-pro" },
 ];
 
 type NanoBananaNodeType = Node<NanoBananaNodeData, "nanoBanana">;

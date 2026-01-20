@@ -50,10 +50,10 @@ function deriveNameFromFilename(filename: string): string {
  */
 function getChineseName(filename: string): string {
   const nameMap: Record<string, string> = {
-    "contact-sheet-ChrisWalkman.json": "克里斯·沃克曼",
-    "contact-sheet-billsSupra.json": "比尔 supra",
-    "contact-sheet-jpow.json": "鲍威尔",
-    "contact-sheet-tim.json": "蒂姆",
+    "contact-sheet-ChrisWalkman.json": "九宫格1",
+    "contact-sheet-billsSupra.json": "九宫格2",
+    "contact-sheet-jpow.json": "九宫格3",
+    "contact-sheet-tim.json": "九宫格4",
   };
   return nameMap[filename] || deriveNameFromFilename(filename);
 }
