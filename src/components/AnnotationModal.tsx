@@ -33,10 +33,12 @@ export function AnnotationModal() {
     isModalOpen,
     sourceNodeId,
     sourceImage,
+    originalImage,
     annotations,
     selectedShapeId,
     currentTool,
     toolOptions,
+    cropArea,
     closeModal,
     addAnnotation,
     updateAnnotation,
@@ -47,6 +49,9 @@ export function AnnotationModal() {
     setToolOptions,
     undo,
     redo,
+    setCropArea,
+    applyCrop,
+    restoreOriginal,
   } = useAnnotationStore();
 
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
@@ -170,6 +175,13 @@ export function AnnotationModal() {
       let newShape: AnnotationShape | null = null;
 
       switch (currentTool) {
+        case "crop": {
+          // 裁剪工具：设置裁剪区域起点
+          setCropArea({ x: pos.x, y: pos.y, width: 0, height: 0 });
+          setIsDrawing(true);
+          setDrawStart(pos);
+          return;
+        }
         case "rectangle":
           newShape = { ...baseShape, type: "rectangle", width: 0, height: 0, fill: toolOptions.fillColor } as RectangleShape;
           break;
@@ -205,12 +217,27 @@ export function AnnotationModal() {
 
       if (newShape) setCurrentShape(newShape);
     },
-    [currentTool, toolOptions, getRelativePointerPosition, selectShape, addAnnotation, scale, position]
+    [currentTool, toolOptions, getRelativePointerPosition, selectShape, addAnnotation, scale, position, setCropArea]
   );
 
   const handleMouseMove = useCallback(() => {
-    if (!isDrawing || !currentShape) return;
+    if (!isDrawing) return;
     const pos = getRelativePointerPosition();
+
+    // 裁剪工具的特殊处理
+    if (currentTool === "crop") {
+      const width = pos.x - drawStart.x;
+      const height = pos.y - drawStart.y;
+      setCropArea({
+        x: width < 0 ? pos.x : drawStart.x,
+        y: height < 0 ? pos.y : drawStart.y,
+        width: Math.abs(width),
+        height: Math.abs(height),
+      });
+      return;
+    }
+
+    if (!currentShape) return;
 
     switch (currentShape.type) {
       case "rectangle": {
@@ -234,11 +261,25 @@ export function AnnotationModal() {
         break;
       }
     }
-  }, [isDrawing, currentShape, drawStart, getRelativePointerPosition]);
+  }, [isDrawing, currentShape, drawStart, getRelativePointerPosition, currentTool, setCropArea]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !currentShape) return;
+    if (!isDrawing) return;
     setIsDrawing(false);
+
+    // 裁剪工具的处理
+    if (currentTool === "crop") {
+      if (cropArea && cropArea.width > 10 && cropArea.height > 10) {
+        // 应用裁剪
+        applyCrop();
+      } else {
+        // 区域太小，清除
+        setCropArea(null);
+      }
+      return;
+    }
+
+    if (!currentShape) return;
 
     let shouldAdd = true;
     if (currentShape.type === "rectangle") {
@@ -256,7 +297,7 @@ export function AnnotationModal() {
 
     if (shouldAdd) addAnnotation(currentShape);
     setCurrentShape(null);
-  }, [isDrawing, currentShape, addAnnotation]);
+  }, [isDrawing, currentShape, addAnnotation, currentTool, cropArea, applyCrop, setCropArea]);
 
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -406,6 +447,7 @@ export function AnnotationModal() {
     { type: "arrow", label: "箭头" },
     { type: "freehand", label: "画笔" },
     { type: "text", label: "文字" },
+    { type: "crop", label: "裁剪" },
   ];
 
   return (
@@ -430,14 +472,28 @@ export function AnnotationModal() {
           <div className="w-px h-6 bg-neutral-700 mx-3" />
 
           <button onClick={undo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">撤销</button>
-          <button onClick={redo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">重做</button>
+          <button onClick={redo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">返回</button>
 
           <div className="w-px h-6 bg-neutral-700 mx-3" />
 
           <button onClick={clearAnnotations} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-red-400">清空</button>
+          <button onClick={restoreOriginal} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-blue-400">恢复原图</button>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* 裁剪确认按钮 */}
+          {cropArea && (
+            <>
+              <button onClick={() => setCropArea(null)} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white">
+                取消裁剪
+              </button>
+              <button onClick={applyCrop} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-500">
+                确认裁剪
+              </button>
+              <div className="w-px h-6 bg-neutral-700" />
+            </>
+          )}
+
           <button onClick={closeModal} className="px-4 py-1.5 text-xs font-medium text-neutral-400 hover:text-white">
             取消
           </button>
@@ -467,6 +523,50 @@ export function AnnotationModal() {
         >
           <Layer>
             {image && <KonvaImage image={image} width={stageSize.width} height={stageSize.height} />}
+            {/* 裁剪区域显示 */}
+            {cropArea && (
+              <>
+                <Rect
+                  x={cropArea.x}
+                  y={cropArea.y}
+                  width={cropArea.width}
+                  height={cropArea.height}
+                  stroke="#3b82f6"
+                  strokeWidth={2 / scale}
+                  fill="rgba(59, 130, 246, 0.1)"
+                  dash={[10, 5]}
+                />
+                {/* 裁剪区域外的遮罩 */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={stageSize.width}
+                  height={cropArea.y}
+                  fill="rgba(0, 0, 0, 0.5)"
+                />
+                <Rect
+                  x={0}
+                  y={cropArea.y + cropArea.height}
+                  width={stageSize.width}
+                  height={stageSize.height - cropArea.y - cropArea.height}
+                  fill="rgba(0, 0, 0, 0.5)"
+                />
+                <Rect
+                  x={0}
+                  y={cropArea.y}
+                  width={cropArea.x}
+                  height={cropArea.height}
+                  fill="rgba(0, 0, 0, 0.5)"
+                />
+                <Rect
+                  x={cropArea.x + cropArea.width}
+                  y={cropArea.y}
+                  width={stageSize.width - cropArea.x - cropArea.width}
+                  height={cropArea.height}
+                  fill="rgba(0, 0, 0, 0.5)"
+                />
+              </>
+            )}
             {annotations.map((shape) => renderShape(shape))}
             {currentShape && renderShape(currentShape, true)}
             <Transformer ref={transformerRef} />

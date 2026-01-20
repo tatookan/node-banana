@@ -79,7 +79,7 @@ const ImageCard = React.memo(({
     const labels: Record<string, string> = {
       generation: '生成',
       input: '输入',
-      annotation: '涂鸦',
+      annotation: '裁剪和涂鸦',
       output: '输出',
     };
     return labels[type] || type;

@@ -262,7 +262,7 @@ export interface LLMGenerateResponse {
 }
 
 // Tool Types for annotation
-export type ToolType = "select" | "rectangle" | "circle" | "arrow" | "freehand" | "text";
+export type ToolType = "select" | "rectangle" | "circle" | "arrow" | "freehand" | "text" | "crop";
 
 // Tool Options
 export interface ToolOptions {

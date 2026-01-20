@@ -90,7 +90,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
   return (
     <BaseNode
       id={id}
-      title="涂鸦"
+      title="裁剪和涂鸦"
       customTitle={nodeData.customTitle}
       comment={nodeData.comment}
       onCustomTitleChange={(title) => updateNodeData(id, { customTitle: title || undefined })}
@@ -129,7 +129,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
             className="w-full flex-1 min-h-0 object-contain rounded"
             onDoubleClick={(e) => {
               e.stopPropagation();
-              openImagePreview(displayImage, "涂鸦的图片");
+              openImagePreview(displayImage, "编辑后的图片");
             }}
             title="单击编辑 • 双击查看大图"
           />
@@ -146,7 +146,7 @@ export function AnnotationNode({ id, data, selected }: NodeProps<AnnotationNodeT
           </button>
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded flex items-center justify-center pointer-events-none">
             <span className="text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 px-2 py-1 rounded">
-              {nodeData.annotations.length > 0 ? `编辑 (${nodeData.annotations.length})` : "添加涂鸦"}
+              {nodeData.annotations.length > 0 ? `编辑 (${nodeData.annotations.length})` : "编辑"}
             </span>
           </div>
         </div>
