@@ -116,6 +116,15 @@ interface WorkflowStore {
   loadWorkflow: (workflow: WorkflowFile, workflowPath?: string) => Promise<void>;
   clearWorkflow: () => void;
 
+  // Server workflow management
+  serverWorkflowId: number | null;
+  serverWorkflowName: string | null;
+  serverWorkflowDescription: string | null;
+  serverFolderId: number | null;
+  saveToServer: (name?: string, description?: string, folderId?: number | null) => Promise<boolean>;
+  loadFromServer: (workflowId: number) => Promise<boolean>;
+  createServerWorkflow: (name: string, folderId?: number | null) => Promise<boolean>;
+
   // Helpers
   getNodeById: (id: string) => WorkflowNode | undefined;
   getConnectedInputs: (nodeId: string) => { images: string[]; text: string | null };
@@ -354,6 +363,12 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   autoSaveEnabled: true,
   isSaving: false,
   useExternalImageStorage: true,  // Default: store images as separate files
+
+  // Server workflow initial state
+  serverWorkflowId: null,
+  serverWorkflowName: null,
+  serverWorkflowDescription: null,
+  serverFolderId: null,
 
   // Cost tracking initial state
   incurredCost: 0,
@@ -2192,5 +2207,210 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       incurredCost,
       lastUpdated: Date.now(),
     });
+  },
+
+  // Server workflow management
+  saveToServer: async (name?: string, description?: string, folderId?: number | null) => {
+    const { nodes, edges, groups, serverWorkflowId, viewport } = get();
+
+    // Use provided name or current server workflow name
+    const workflowName = name || get().serverWorkflowName || "未命名工作流";
+    const finalFolderId = folderId !== undefined ? folderId : get().serverFolderId;
+
+    set({ isSaving: true });
+
+    try {
+      // Prepare workflow data
+      const workflowData = {
+        nodes,
+        edges,
+        groups: Object.keys(groups).length > 0 ? groups : {},
+        viewport: viewport || { x: 0, y: 0, zoom: 1 },
+      };
+
+      if (serverWorkflowId) {
+        // Update existing workflow
+        const response = await fetch(`/api/workflows/${serverWorkflowId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: workflowName,
+            description,
+            folder_id: finalFolderId,
+            workflow_data: workflowData,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          set({
+            serverWorkflowName: workflowName,
+            serverWorkflowDescription: description || null,
+            serverFolderId: finalFolderId ?? null,
+            hasUnsavedChanges: false,
+            isSaving: false,
+            lastSavedAt: Date.now(),
+          });
+          useToast.getState().show("保存成功", "success");
+          return true;
+        } else {
+          set({ isSaving: false });
+          useToast.getState().show(`保存失败: ${result.error}`, "error");
+          return false;
+        }
+      } else {
+        // Create new workflow
+        const response = await fetch("/api/workflows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workflow_id: crypto.randomUUID?.() || `workflow-${Date.now()}`,
+            name: workflowName,
+            description,
+            folder_id: finalFolderId,
+            workflow_data: workflowData,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          set({
+            serverWorkflowId: result.workflow.id,
+            serverWorkflowName: workflowName,
+            serverWorkflowDescription: description || null,
+            serverFolderId: finalFolderId ?? null,
+            hasUnsavedChanges: false,
+            isSaving: false,
+            lastSavedAt: Date.now(),
+          });
+          useToast.getState().show("保存成功", "success");
+          return true;
+        } else {
+          set({ isSaving: false });
+          useToast.getState().show(`保存失败: ${result.error}`, "error");
+          return false;
+        }
+      }
+    } catch (error) {
+      set({ isSaving: false });
+      useToast.getState().show(
+        `保存失败: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error"
+      );
+      return false;
+    }
+  },
+
+  loadFromServer: async (workflowId: number) => {
+    set({ isSaving: true });
+
+    try {
+      const response = await fetch(`/api/workflows/${workflowId}`);
+      const result = await response.json();
+
+      if (!result.success) {
+        set({ isSaving: false });
+        useToast.getState().show(`加载失败: ${result.error}`, "error");
+        return false;
+      }
+
+      const workflow = result.workflow;
+
+      // Load workflow data into store
+      const { nodes, edges, groups } = workflow.workflow_data;
+
+      set({
+        nodes: nodes || [],
+        edges: edges || [],
+        groups: groups || {},
+        serverWorkflowId: workflow.id,
+        serverWorkflowName: workflow.name,
+        serverWorkflowDescription: workflow.description,
+        serverFolderId: workflow.folder_id,
+        hasUnsavedChanges: false,
+        isSaving: false,
+      });
+
+      // Reset local file paths since we're now working with server workflow
+      set({
+        workflowId: null,
+        workflowName: null,
+        saveDirectoryPath: null,
+        generationsPath: null,
+      });
+
+      useToast.getState().show(`已加载工作流: ${workflow.name}`, "success");
+      return true;
+    } catch (error) {
+      set({ isSaving: false });
+      useToast.getState().show(
+        `加载失败: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error"
+      );
+      return false;
+    }
+  },
+
+  createServerWorkflow: async (name: string, folderId?: number | null) => {
+    const { nodes, edges, groups } = get();
+
+    set({ isSaving: true });
+
+    try {
+      const workflowData = {
+        nodes,
+        edges,
+        groups: Object.keys(groups).length > 0 ? groups : {},
+        viewport: { x: 0, y: 0, zoom: 1 },
+      };
+
+      const response = await fetch("/api/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflow_id: crypto.randomUUID?.() || `workflow-${Date.now()}`,
+          name,
+          folder_id: folderId || null,
+          workflow_data: workflowData,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        set({
+          serverWorkflowId: result.workflow.id,
+          serverWorkflowName: name,
+          serverFolderId: folderId || null,
+          hasUnsavedChanges: false,
+          isSaving: false,
+          lastSavedAt: Date.now(),
+        });
+
+        // Reset local file paths
+        set({
+          workflowId: null,
+          workflowName: null,
+          saveDirectoryPath: null,
+          generationsPath: null,
+        });
+
+        useToast.getState().show(`已创建工作流: ${name}`, "success");
+        return true;
+      } else {
+        set({ isSaving: false });
+        useToast.getState().show(`创建失败: ${result.error}`, "error");
+        return false;
+      }
+    } catch (error) {
+      set({ isSaving: false });
+      useToast.getState().show(
+        `创建失败: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error"
+      );
+      return false;
+    }
   },
 }));

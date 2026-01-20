@@ -307,3 +307,89 @@ export interface NodeGroup {
   size: { width: number; height: number };
   locked?: boolean;
 }
+
+// ============================================================================
+// 工作流管理相关类型 (Workflow Management Types)
+// ============================================================================
+
+// 工作流文件夹
+export interface WorkflowFolder {
+  id: number;
+  user_id: number;
+  name: string;
+  icon: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+}
+
+// 创建文件夹请求
+export interface CreateFolderRequest {
+  name: string;
+  icon?: string;
+  color?: string;
+}
+
+// 更新文件夹请求
+export interface UpdateFolderRequest {
+  name?: string;
+  icon?: string;
+  color?: string;
+}
+
+// 服务器端工作流
+export interface ServerWorkflow {
+  id: number;
+  user_id: number;
+  workflow_id: string;
+  name: string;
+  description: string | null;
+  folder_id: number | null;
+  thumbnail: string | null;
+  is_public: boolean;
+  is_favorite: boolean;
+  tags: string[] | null;
+  workflow_data: {
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+    groups: NodeGroup[];
+    viewport: { x: number; y: number; zoom: number };
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+// 创建工作流请求
+export interface CreateWorkflowRequest {
+  workflow_id: string;
+  name: string;
+  description?: string;
+  folder_id?: number;
+  workflow_data: ServerWorkflow['workflow_data'];
+}
+
+// 更新工作流请求
+export interface UpdateWorkflowRequest {
+  name?: string;
+  description?: string;
+  folder_id?: number;
+  is_favorite?: boolean;
+  tags?: string[];
+}
+
+// 工作流列表查询参数
+export interface WorkflowsQueryParams {
+  page?: number;
+  limit?: number;
+  folder_id?: number;
+  search?: string;
+  is_favorite?: boolean;
+}
+
+// 工作流列表响应
+export interface WorkflowsListResponse {
+  workflows: ServerWorkflow[];
+  total: number;
+  page: number;
+  limit: number;
+}

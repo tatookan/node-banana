@@ -141,6 +141,47 @@ export async function initDatabase() {
   // Migrate user_images table for favorites
   await migrateUserImagesTable();
 
+  // Create workflow_folders table
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS workflow_folders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      name VARCHAR(100) NOT NULL COMMENT '文件夹名称',
+      icon VARCHAR(50) DEFAULT 'folder' COMMENT '图标名称',
+      color VARCHAR(20) DEFAULT '#6366f1' COMMENT '颜色代码',
+      sort_order INT DEFAULT 0 COMMENT '排序顺序',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_folder_name (user_id, name),
+      INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // Create workflows table
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS workflows (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      workflow_id VARCHAR(100) UNIQUE NOT NULL COMMENT 'UUID',
+      name VARCHAR(200) NOT NULL COMMENT '工作流名称',
+      description TEXT COMMENT '工作流描述',
+      folder_id INT NULL COMMENT '所属文件夹ID',
+      thumbnail VARCHAR(500) COMMENT '预览图URL',
+      is_public BOOLEAN DEFAULT FALSE COMMENT '是否公开分享',
+      is_favorite BOOLEAN DEFAULT FALSE COMMENT '是否收藏',
+      tags JSON COMMENT '标签数组',
+      workflow_data JSON NOT NULL COMMENT '完整工作流数据',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (folder_id) REFERENCES workflow_folders(id) ON DELETE SET NULL,
+      INDEX idx_user_id (user_id),
+      INDEX idx_folder_id (folder_id),
+      INDEX idx_is_public (is_public),
+      INDEX idx_updated_at (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   console.log('[Database] Tables initialized');
 }
 

@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkflowStore, WorkflowFile } from "@/store/workflowStore";
 import { ProjectSetupModal } from "./ProjectSetupModal";
 import { CostIndicator } from "./CostIndicator";
 import { StatsModal } from "./StatsModal";
 import ImageGallery from "./ImageGallery";
 import { useAuth } from "@/contexts/AuthContext";
+import { SaveToServerModal } from "@/components/workflows/SaveToServerModal";
+import type { WorkflowFolder } from "@/types";
 
 export function Header() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const {
     workflowName,
@@ -20,12 +24,19 @@ export function Header() {
     setWorkflowMetadata,
     saveToFile,
     loadWorkflow,
+    saveToServer,
+    serverWorkflowName,
+    serverWorkflowDescription,
+    serverFolderId,
   } = useWorkflowStore();
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState<"new" | "settings">("new");
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showCloudGallery, setShowCloudGallery] = useState(false);
+  const [showSaveToServerModal, setShowSaveToServerModal] = useState(false);
+  const [folders, setFolders] = useState<WorkflowFolder[]>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isProjectConfigured = !!workflowName;
@@ -112,6 +123,39 @@ export function Header() {
     }
   };
 
+  // 加载文件夹列表
+  const loadFolders = async () => {
+    if (!user) return;
+    setIsLoadingFolders(true);
+    try {
+      const response = await fetch("/api/workflow-folders");
+      const data = await response.json();
+      if (data.success) {
+        setFolders(data.folders || []);
+      }
+    } catch (error) {
+      console.error("加载文件夹失败:", error);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  };
+
+  // 打开云端保存弹窗
+  const handleOpenSaveToServerModal = async () => {
+    await loadFolders();
+    setShowSaveToServerModal(true);
+  };
+
+  // 保存到服务器
+  const handleSaveToServer = async (name: string, description?: string, folderId?: number | null) => {
+    const success = await saveToServer(name, description, folderId);
+    if (success) {
+      alert("保存成功！");
+    } else {
+      alert("保存失败，请重试。");
+    }
+  };
+
   return (
     <>
       <ProjectSetupModal
@@ -123,6 +167,18 @@ export function Header() {
       <StatsModal
         isOpen={showStatsModal}
         onClose={() => setShowStatsModal(false)}
+      />
+
+      {/* Save to Server Modal */}
+      <SaveToServerModal
+        isOpen={showSaveToServerModal}
+        onClose={() => setShowSaveToServerModal(false)}
+        onSave={handleSaveToServer}
+        currentName={serverWorkflowName || workflowName}
+        currentDescription={serverWorkflowDescription}
+        currentFolderId={serverFolderId}
+        folders={folders}
+        isLoading={isLoadingFolders}
       />
 
       {/* Cloud Gallery Modal */}
@@ -183,6 +239,28 @@ export function Header() {
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
                   )}
                 </button>
+                {/* 云端保存按钮 */}
+                {user && (
+                  <button
+                    onClick={handleOpenSaveToServerModal}
+                    className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
+                    title="保存到服务器"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+                      />
+                    </svg>
+                  </button>
+                )}
                 {saveDirectoryPath && (
                   <button
                     onClick={handleOpenDirectory}
@@ -237,6 +315,28 @@ export function Header() {
                 >
                   保存项目
                 </button>
+                {/* 云端保存按钮（未配置状态） */}
+                {user && (
+                  <button
+                    onClick={handleOpenSaveToServerModal}
+                    className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
+                    title="保存到服务器"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+                      />
+                    </svg>
+                  </button>
+                )}
                 <span className="text-neutral-500">·</span>
                 <button
                   onClick={handleOpenFile}
@@ -287,6 +387,25 @@ export function Header() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     d="M3 15a4 4 0 0 0 4 4h9a5 5 0 1 0-.1-9.999 5.002 5.002 0 1 0-9.78 2.096A4.001 4.001 0 0 0 3 15Z"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => router.push("/workflows")}
+                className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
+                title="我的工作流"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                   />
                 </svg>
               </button>
