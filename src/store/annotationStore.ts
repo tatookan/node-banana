@@ -22,8 +22,8 @@ interface AnnotationStore {
   // Crop state
   cropArea: CropArea | null;
 
-  // History for undo/redo
-  history: AnnotationShape[][];
+  // History for undo/redo (includes both annotations and image state)
+  history: { annotations: AnnotationShape[]; sourceImage: string | null }[];
   historyIndex: number;
 
   // Current tool and options
@@ -71,7 +71,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   originalImage: null,  // 保存原图
   annotations: [],
   selectedShapeId: null,
-  history: [[]],
+  history: [{ annotations: [], sourceImage: null }],
   historyIndex: 0,
   currentTool: "rectangle",
   toolOptions: defaultToolOptions,
@@ -85,7 +85,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       originalImage: image,  // 保存原图
       annotations: existingAnnotations,
       selectedShapeId: null,
-      history: [existingAnnotations],
+      history: [{ annotations: existingAnnotations, sourceImage: image }],
       historyIndex: 0,
       cropArea: null,
     });
@@ -98,13 +98,13 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       sourceImage: null,
       annotations: [],
       selectedShapeId: null,
-      history: [[]],
+      history: [{ annotations: [], sourceImage: null }],
       historyIndex: 0,
     });
   },
 
   addAnnotation: (shape: AnnotationShape) => {
-    const { pushHistory } = get();
+    const { pushHistory, sourceImage } = get();
     pushHistory();
     set((state) => ({
       annotations: [...state.annotations, shape],
@@ -144,7 +144,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   pushHistory: () => {
     set((state) => {
       const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push([...state.annotations]);
+      newHistory.push({ annotations: [...state.annotations], sourceImage: state.sourceImage });
       return {
         history: newHistory,
         historyIndex: newHistory.length - 1,
@@ -156,9 +156,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     set((state) => {
       if (state.historyIndex > 0) {
         const newIndex = state.historyIndex - 1;
+        const prevState = state.history[newIndex];
         return {
           historyIndex: newIndex,
-          annotations: [...state.history[newIndex]],
+          annotations: [...prevState.annotations],
+          sourceImage: prevState.sourceImage,
           selectedShapeId: null,
         };
       }
@@ -170,9 +172,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     set((state) => {
       if (state.historyIndex < state.history.length - 1) {
         const newIndex = state.historyIndex + 1;
+        const nextState = state.history[newIndex];
         return {
           historyIndex: newIndex,
-          annotations: [...state.history[newIndex]],
+          annotations: [...nextState.annotations],
+          sourceImage: nextState.sourceImage,
           selectedShapeId: null,
         };
       }
@@ -196,8 +200,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   applyCrop: () => {
-    const { cropArea, sourceImage } = get();
+    const { cropArea, sourceImage, pushHistory, historyIndex } = get();
     if (!cropArea || !sourceImage) return;
+
+    // 保存当前状态到历史记录
+    pushHistory();
 
     // 创建画布来裁剪图片
     const img = new window.Image();
@@ -227,24 +234,23 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         annotations: [],
         selectedShapeId: null,
         cropArea: null,
-        history: [[]],
-        historyIndex: 0,
       });
     };
     img.src = sourceImage;
   },
 
   restoreOriginal: () => {
-    const { originalImage } = get();
+    const { originalImage, pushHistory } = get();
     if (!originalImage) return;
+
+    // 保存当前状态到历史记录
+    pushHistory();
 
     set({
       sourceImage: originalImage,
       annotations: [],
       selectedShapeId: null,
       cropArea: null,
-      history: [[]],
-      historyIndex: 0,
     });
   },
 }));

@@ -28,6 +28,8 @@ const COLORS = [
 
 const STROKE_WIDTHS = [2, 4, 8];
 
+const FONT_SIZES = [16, 20, 24, 32, 40, 48, 64];
+
 export function AnnotationModal() {
   const {
     isModalOpen,
@@ -72,6 +74,11 @@ export function AnnotationModal() {
   const textInputCreatedAt = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 裁剪相关状态
+  const [cropDragStart, setCropDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [cropHandle, setCropHandle] = useState<string | null>(null); // 'tl', 'tr', 'bl', 'br', 'move'
+  const [showCropGrid, setShowCropGrid] = useState(false);
+
   useEffect(() => {
     if (sourceImage) {
       const img = new window.Image();
@@ -95,11 +102,37 @@ export function AnnotationModal() {
     }
   }, [sourceImage]);
 
+  // 初始化裁剪区域（当切换到裁剪工具时）
+  useEffect(() => {
+    if (currentTool === "crop" && image && !cropArea) {
+      // 默认裁剪区域为图片的80%，居中
+      const defaultSize = Math.min(image.width, image.height) * 0.8;
+      setCropArea({
+        x: (image.width - defaultSize) / 2,
+        y: (image.height - defaultSize) / 2,
+        width: defaultSize,
+        height: defaultSize,
+      });
+      setShowCropGrid(true);
+    } else if (currentTool !== "crop" && showCropGrid) {
+      setShowCropGrid(false);
+    }
+  }, [currentTool, image, cropArea, setCropArea, showCropGrid]);
+
+  // 更新 Transformer
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
       const selectedNode = stageRef.current.findOne(`#${selectedShapeId}`);
       if (selectedNode && currentTool === "select") {
         transformerRef.current.nodes([selectedNode]);
+        // 配置 Transformer
+        transformerRef.current.setAttrs({
+          anchorSize: 10,
+          borderStroke: "#3b82f6",
+          anchorStroke: "#3b82f6",
+          anchorFill: "#ffffff",
+          borderDash: [4, 4],
+        });
       } else {
         transformerRef.current.nodes([]);
       }
@@ -148,8 +181,63 @@ export function AnnotationModal() {
     return transform.point(pos);
   }, []);
 
+  // 获取裁剪区域的手柄位置
+  const getCropHandles = useCallback(() => {
+    if (!cropArea) return null;
+    return {
+      tl: { x: cropArea.x, y: cropArea.y },
+      tr: { x: cropArea.x + cropArea.width, y: cropArea.y },
+      bl: { x: cropArea.x, y: cropArea.y + cropArea.height },
+      br: { x: cropArea.x + cropArea.width, y: cropArea.y + cropArea.height },
+    };
+  }, [cropArea]);
+
+  // 检测是否点击了裁剪手柄
+  const getCropHandleAtPosition = useCallback((pos: { x: number; y: number }) => {
+    if (!cropArea) return null;
+    const handles = getCropHandles();
+    if (!handles) return null;
+
+    const handleSize = 15 / scale;
+    const { tl, tr, bl, br } = handles;
+
+    // 检查角手柄
+    if (Math.abs(pos.x - tl.x) < handleSize && Math.abs(pos.y - tl.y) < handleSize) return "tl";
+    if (Math.abs(pos.x - tr.x) < handleSize && Math.abs(pos.y - tr.y) < handleSize) return "tr";
+    if (Math.abs(pos.x - bl.x) < handleSize && Math.abs(pos.y - bl.y) < handleSize) return "bl";
+    if (Math.abs(pos.x - br.x) < handleSize && Math.abs(pos.y - br.y) < handleSize) return "br";
+
+    // 检查是否在裁剪区域内（用于拖动）
+    if (pos.x > cropArea.x && pos.x < cropArea.x + cropArea.width &&
+        pos.y > cropArea.y && pos.y < cropArea.y + cropArea.height) {
+      return "move";
+    }
+
+    return null;
+  }, [cropArea, getCropHandles, scale]);
+
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const pos = getRelativePointerPosition();
+
+      // 裁剪工具的处理
+      if (currentTool === "crop" && cropArea) {
+        const handle = getCropHandleAtPosition(pos);
+        if (handle) {
+          setCropHandle(handle);
+          setCropDragStart(pos);
+          setIsDrawing(true);
+          setDrawStart(pos);
+          return;
+        }
+        // 点击外部，取消裁剪模式
+        if (handle === null) {
+          setCurrentTool("select");
+          setShowCropGrid(false);
+        }
+        return;
+      }
+
       if (currentTool === "select") {
         const clickedOnEmpty = e.target === e.target.getStage() || e.target.getClassName() === "Image";
         if (clickedOnEmpty) {
@@ -158,7 +246,6 @@ export function AnnotationModal() {
         return;
       }
 
-      const pos = getRelativePointerPosition();
       setIsDrawing(true);
       setDrawStart(pos);
 
@@ -175,13 +262,6 @@ export function AnnotationModal() {
       let newShape: AnnotationShape | null = null;
 
       switch (currentTool) {
-        case "crop": {
-          // 裁剪工具：设置裁剪区域起点
-          setCropArea({ x: pos.x, y: pos.y, width: 0, height: 0 });
-          setIsDrawing(true);
-          setDrawStart(pos);
-          return;
-        }
         case "rectangle":
           newShape = { ...baseShape, type: "rectangle", width: 0, height: 0, fill: toolOptions.fillColor } as RectangleShape;
           break;
@@ -195,7 +275,6 @@ export function AnnotationModal() {
           newShape = { ...baseShape, type: "freehand", points: [0, 0] } as FreehandShape;
           break;
         case "text": {
-          // Calculate screen position for the input
           const stage = stageRef.current;
           if (stage) {
             const container = stage.container();
@@ -217,23 +296,93 @@ export function AnnotationModal() {
 
       if (newShape) setCurrentShape(newShape);
     },
-    [currentTool, toolOptions, getRelativePointerPosition, selectShape, addAnnotation, scale, position, setCropArea]
+    [currentTool, toolOptions, getRelativePointerPosition, selectShape, addAnnotation, scale, position, cropArea, getCropHandleAtPosition, setCurrentTool]
   );
 
   const handleMouseMove = useCallback(() => {
     if (!isDrawing) return;
     const pos = getRelativePointerPosition();
 
-    // 裁剪工具的特殊处理
-    if (currentTool === "crop") {
-      const width = pos.x - drawStart.x;
-      const height = pos.y - drawStart.y;
-      setCropArea({
-        x: width < 0 ? pos.x : drawStart.x,
-        y: height < 0 ? pos.y : drawStart.y,
-        width: Math.abs(width),
-        height: Math.abs(height),
-      });
+    // 裁剪工具的拖动处理
+    if (currentTool === "crop" && cropArea && cropDragStart && cropHandle) {
+      const dx = pos.x - cropDragStart.x;
+      const dy = pos.y - cropDragStart.y;
+
+      let newArea = { ...cropArea };
+
+      // 图片边界
+      const maxX = image ? image.width : 0;
+      const maxY = image ? image.height : 0;
+      const minSize = 50;
+
+      switch (cropHandle) {
+        case "move":
+          newArea.x += dx;
+          newArea.y += dy;
+          // 边界检查：确保裁剪框不超出图片
+          newArea.x = Math.max(0, Math.min(newArea.x, maxX - newArea.width));
+          newArea.y = Math.max(0, Math.min(newArea.y, maxY - newArea.height));
+          setCropDragStart(pos);
+          break;
+        case "tl":
+          // 左上角：同时调整 x, y, width, height
+          newArea.x += dx;
+          newArea.y += dy;
+          newArea.width -= dx;
+          newArea.height -= dy;
+          // 边界检查
+          if (newArea.x < 0) { newArea.width += newArea.x; newArea.x = 0; }
+          if (newArea.y < 0) { newArea.height += newArea.y; newArea.y = 0; }
+          if (newArea.width < minSize) newArea.width = minSize;
+          if (newArea.height < minSize) newArea.height = minSize;
+          // 确保不超过右下边界
+          newArea.x = Math.min(newArea.x, maxX - newArea.width);
+          newArea.y = Math.min(newArea.y, maxY - newArea.height);
+          setCropDragStart(pos);
+          break;
+        case "tr":
+          // 右上角：调整 y, width, height
+          newArea.y += dy;
+          newArea.width += dx;
+          newArea.height -= dy;
+          // 边界检查
+          if (newArea.y < 0) { newArea.height += newArea.y; newArea.y = 0; }
+          if (newArea.width < minSize) newArea.width = minSize;
+          if (newArea.height < minSize) newArea.height = minSize;
+          // 确保不超出边界
+          newArea.width = Math.min(newArea.width, maxX - newArea.x);
+          newArea.y = Math.min(newArea.y, maxY - newArea.height);
+          setCropDragStart(pos);
+          break;
+        case "bl":
+          // 左下角：调整 x, width, height
+          newArea.x += dx;
+          newArea.width -= dx;
+          newArea.height += dy;
+          // 边界检查
+          if (newArea.x < 0) { newArea.width += newArea.x; newArea.x = 0; }
+          if (newArea.width < minSize) newArea.width = minSize;
+          if (newArea.height < minSize) newArea.height = minSize;
+          // 确保不超出边界
+          newArea.x = Math.min(newArea.x, maxX - newArea.width);
+          newArea.height = Math.min(newArea.height, maxY - newArea.y);
+          setCropDragStart(pos);
+          break;
+        case "br":
+          // 右下角：调整 width, height
+          newArea.width += dx;
+          newArea.height += dy;
+          // 边界检查
+          if (newArea.width < minSize) newArea.width = minSize;
+          if (newArea.height < minSize) newArea.height = minSize;
+          // 确保不超出边界
+          newArea.width = Math.min(newArea.width, maxX - newArea.x);
+          newArea.height = Math.min(newArea.height, maxY - newArea.y);
+          setCropDragStart(pos);
+          break;
+      }
+
+      setCropArea(newArea);
       return;
     }
 
@@ -261,21 +410,16 @@ export function AnnotationModal() {
         break;
       }
     }
-  }, [isDrawing, currentShape, drawStart, getRelativePointerPosition, currentTool, setCropArea]);
+  }, [isDrawing, currentShape, drawStart, getRelativePointerPosition, currentTool, cropArea, cropDragStart, cropHandle, setCropArea, image]);
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing) return;
     setIsDrawing(false);
 
-    // 裁剪工具的处理
+    // 裁剪工具松开
     if (currentTool === "crop") {
-      if (cropArea && cropArea.width > 10 && cropArea.height > 10) {
-        // 应用裁剪
-        applyCrop();
-      } else {
-        // 区域太小，清除
-        setCropArea(null);
-      }
+      setCropHandle(null);
+      setCropDragStart(null);
       return;
     }
 
@@ -297,7 +441,7 @@ export function AnnotationModal() {
 
     if (shouldAdd) addAnnotation(currentShape);
     setCurrentShape(null);
-  }, [isDrawing, currentShape, addAnnotation, currentTool, cropArea, applyCrop, setCropArea]);
+  }, [isDrawing, currentShape, addAnnotation, currentTool, setCropHandle, setCropDragStart]);
 
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -409,7 +553,6 @@ export function AnnotationModal() {
               const node = e.target;
               const scaleX = node.scaleX();
               const scaleY = node.scaleY();
-              // Reset scale and apply it to fontSize instead
               node.scaleX(1);
               node.scaleY(1);
               const newFontSize = Math.round(text.fontSize * Math.max(scaleX, scaleY));
@@ -450,6 +593,53 @@ export function AnnotationModal() {
     { type: "crop", label: "裁剪" },
   ];
 
+  // 渲染九宫格裁剪框
+  const renderCropArea = () => {
+    if (!cropArea || !showCropGrid) return null;
+
+    const handles = getCropHandles();
+    if (!handles) return null;
+
+    const handleSize = 12 / scale;
+
+    return (
+      <>
+        {/* 外部遮罩 */}
+        <Rect x={0} y={0} width={stageSize.width} height={cropArea.y} fill="rgba(0, 0, 0, 0.6)" listening={false} />
+        <Rect x={0} y={cropArea.y + cropArea.height} width={stageSize.width} height={stageSize.height - cropArea.y - cropArea.height} fill="rgba(0, 0, 0, 0.6)" listening={false} />
+        <Rect x={0} y={cropArea.y} width={cropArea.x} height={cropArea.height} fill="rgba(0, 0, 0, 0.6)" listening={false} />
+        <Rect x={cropArea.x + cropArea.width} y={cropArea.y} width={stageSize.width - cropArea.x - cropArea.width} height={cropArea.height} fill="rgba(0, 0, 0, 0.6)" listening={false} />
+
+        {/* 裁剪区域边框 */}
+        <Rect x={cropArea.x} y={cropArea.y} width={cropArea.width} height={cropArea.height} stroke="#3b82f6" strokeWidth={2 / scale} fill="transparent" listening={false} />
+
+        {/* 九宫格线 */}
+        <Line
+          points={[cropArea.x + cropArea.width / 3, cropArea.y, cropArea.x + cropArea.width / 3, cropArea.y + cropArea.height]}
+          stroke="#ffffff" strokeWidth={1 / scale} strokeDash={[4, 4]} opacity={0.5} listening={false}
+        />
+        <Line
+          points={[cropArea.x + cropArea.width * 2 / 3, cropArea.y, cropArea.x + cropArea.width * 2 / 3, cropArea.y + cropArea.height]}
+          stroke="#ffffff" strokeWidth={1 / scale} strokeDash={[4, 4]} opacity={0.5} listening={false}
+        />
+        <Line
+          points={[cropArea.x, cropArea.y + cropArea.height / 3, cropArea.x + cropArea.width, cropArea.y + cropArea.height / 3]}
+          stroke="#ffffff" strokeWidth={1 / scale} strokeDash={[4, 4]} opacity={0.5} listening={false}
+        />
+        <Line
+          points={[cropArea.x, cropArea.y + cropArea.height * 2 / 3, cropArea.x + cropArea.width, cropArea.y + cropArea.height * 2 / 3]}
+          stroke="#ffffff" strokeWidth={1 / scale} strokeDash={[4, 4]} opacity={0.5} listening={false}
+        />
+
+        {/* 四个角的手柄 */}
+        <Rect x={handles.tl.x - handleSize / 2} y={handles.tl.y - handleSize / 2} width={handleSize} height={handleSize} fill="#3b82f6" stroke="#ffffff" strokeWidth={2 / scale} />
+        <Rect x={handles.tr.x - handleSize / 2} y={handles.tr.y - handleSize / 2} width={handleSize} height={handleSize} fill="#3b82f6" stroke="#ffffff" strokeWidth={2 / scale} />
+        <Rect x={handles.bl.x - handleSize / 2} y={handles.bl.y - handleSize / 2} width={handleSize} height={handleSize} fill="#3b82f6" stroke="#ffffff" strokeWidth={2 / scale} />
+        <Rect x={handles.br.x - handleSize / 2} y={handles.br.y - handleSize / 2} width={handleSize} height={handleSize} fill="#3b82f6" stroke="#ffffff" strokeWidth={2 / scale} />
+      </>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-neutral-950 flex flex-col">
       {/* Top Bar */}
@@ -482,12 +672,12 @@ export function AnnotationModal() {
 
         <div className="flex items-center gap-3">
           {/* 裁剪确认按钮 */}
-          {cropArea && (
+          {showCropGrid && cropArea && (
             <>
-              <button onClick={() => setCropArea(null)} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white">
+              <button onClick={() => { setCurrentTool("select"); setShowCropGrid(false); }} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white">
                 取消裁剪
               </button>
-              <button onClick={applyCrop} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-500">
+              <button onClick={() => { applyCrop(); setCurrentTool("select"); setShowCropGrid(false); }} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-500">
                 确认裁剪
               </button>
               <div className="w-px h-6 bg-neutral-700" />
@@ -523,50 +713,7 @@ export function AnnotationModal() {
         >
           <Layer>
             {image && <KonvaImage image={image} width={stageSize.width} height={stageSize.height} />}
-            {/* 裁剪区域显示 */}
-            {cropArea && (
-              <>
-                <Rect
-                  x={cropArea.x}
-                  y={cropArea.y}
-                  width={cropArea.width}
-                  height={cropArea.height}
-                  stroke="#3b82f6"
-                  strokeWidth={2 / scale}
-                  fill="rgba(59, 130, 246, 0.1)"
-                  dash={[10, 5]}
-                />
-                {/* 裁剪区域外的遮罩 */}
-                <Rect
-                  x={0}
-                  y={0}
-                  width={stageSize.width}
-                  height={cropArea.y}
-                  fill="rgba(0, 0, 0, 0.5)"
-                />
-                <Rect
-                  x={0}
-                  y={cropArea.y + cropArea.height}
-                  width={stageSize.width}
-                  height={stageSize.height - cropArea.y - cropArea.height}
-                  fill="rgba(0, 0, 0, 0.5)"
-                />
-                <Rect
-                  x={0}
-                  y={cropArea.y}
-                  width={cropArea.x}
-                  height={cropArea.height}
-                  fill="rgba(0, 0, 0, 0.5)"
-                />
-                <Rect
-                  x={cropArea.x + cropArea.width}
-                  y={cropArea.y}
-                  width={stageSize.width - cropArea.x - cropArea.width}
-                  height={cropArea.height}
-                  fill="rgba(0, 0, 0, 0.5)"
-                />
-              </>
-            )}
+            {renderCropArea()}
             {annotations.map((shape) => renderShape(shape))}
             {currentShape && renderShape(currentShape, true)}
             <Transformer ref={transformerRef} />
@@ -611,6 +758,27 @@ export function AnnotationModal() {
 
         <div className="w-px h-6 bg-neutral-700" />
 
+        {/* Font Size (仅文字工具时显示) */}
+        {currentTool === "text" && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">字号</span>
+              {FONT_SIZES.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setToolOptions({ fontSize: size })}
+                  className={`px-2 py-1 rounded text-xs transition-colors ${
+                    toolOptions.fontSize === size ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <div className="w-px h-6 bg-neutral-700" />
+          </>
+        )}
+
         {/* Fill Toggle */}
         <button
           onClick={() => setToolOptions({ fillColor: toolOptions.fillColor ? null : toolOptions.strokeColor })}
@@ -650,7 +818,6 @@ export function AnnotationModal() {
               const value = (e.target as HTMLInputElement).value;
               if (value.trim()) {
                 if (editingTextId === "new" && pendingTextPosition) {
-                  // Create new text annotation
                   const newShape: TextShape = {
                     id: `shape-${Date.now()}`,
                     type: "text",
@@ -687,8 +854,6 @@ export function AnnotationModal() {
             }
           }}
           onBlur={(e) => {
-            // Ignore blur events that happen immediately after creation (within 200ms)
-            // This prevents the click that created the input from also triggering blur
             if (Date.now() - textInputCreatedAt.current < 200) {
               e.target.focus();
               return;
@@ -697,7 +862,6 @@ export function AnnotationModal() {
             const value = e.target.value;
             if (value.trim()) {
               if (editingTextId === "new" && pendingTextPosition) {
-                // Create new text annotation
                 const newShape: TextShape = {
                   id: `shape-${Date.now()}`,
                   type: "text",
