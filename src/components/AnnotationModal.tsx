@@ -400,12 +400,12 @@ export function AnnotationModal() {
   if (!isModalOpen) return null;
 
   const tools: { type: ToolType; label: string }[] = [
-    { type: "select", label: "Select" },
-    { type: "rectangle", label: "Rect" },
-    { type: "circle", label: "Circle" },
-    { type: "arrow", label: "Arrow" },
-    { type: "freehand", label: "Draw" },
-    { type: "text", label: "Text" },
+    { type: "select", label: "选择" },
+    { type: "rectangle", label: "矩形" },
+    { type: "circle", label: "圆形" },
+    { type: "arrow", label: "箭头" },
+    { type: "freehand", label: "画笔" },
+    { type: "text", label: "文字" },
   ];
 
   return (
@@ -429,20 +429,20 @@ export function AnnotationModal() {
 
           <div className="w-px h-6 bg-neutral-700 mx-3" />
 
-          <button onClick={undo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">Undo</button>
-          <button onClick={redo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">Redo</button>
+          <button onClick={undo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">撤销</button>
+          <button onClick={redo} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white">重做</button>
 
           <div className="w-px h-6 bg-neutral-700 mx-3" />
 
-          <button onClick={clearAnnotations} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-red-400">Clear</button>
+          <button onClick={clearAnnotations} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-red-400">清空</button>
         </div>
 
         <div className="flex items-center gap-3">
           <button onClick={closeModal} className="px-4 py-1.5 text-xs font-medium text-neutral-400 hover:text-white">
-            Cancel
+            取消
           </button>
           <button onClick={handleDone} className="px-4 py-1.5 text-xs font-medium bg-white text-neutral-900 rounded hover:bg-neutral-200">
-            Done
+            完成
           </button>
         </div>
       </div>
@@ -478,7 +478,7 @@ export function AnnotationModal() {
       <div className="h-14 bg-neutral-900 flex items-center justify-center gap-6 px-4 border-t border-neutral-800">
         {/* Colors */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Color</span>
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">颜色</span>
           {COLORS.map((color) => (
             <button
               key={color}
@@ -495,7 +495,7 @@ export function AnnotationModal() {
 
         {/* Stroke Width */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Size</span>
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">粗细</span>
           {STROKE_WIDTHS.map((width) => (
             <button
               key={width}
@@ -518,7 +518,7 @@ export function AnnotationModal() {
             toolOptions.fillColor ? "bg-neutral-700 text-white" : "text-neutral-500 hover:text-white"
           }`}
         >
-          Fill
+          填充
         </button>
 
         {/* Zoom */}

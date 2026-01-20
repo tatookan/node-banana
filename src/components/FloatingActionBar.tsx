@@ -210,7 +210,7 @@ export function FloatingActionBar() {
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
       <div className="flex items-center gap-0.5 bg-neutral-800/95 backdrop-blur-sm rounded-lg shadow-lg border border-neutral-700/80 px-1.5 py-1">
         <NodeButton type="imageInput" label="图片" />
-        <NodeButton type="annotation" label="标注" />
+        <NodeButton type="annotation" label="涂鸦" />
         <NodeButton type="prompt" label="提示词" />
         <GenerateComboButton />
         <NodeButton type="output" label="输出" />
