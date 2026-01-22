@@ -128,6 +128,7 @@ interface WorkflowStore {
   // Helpers
   getNodeById: (id: string) => WorkflowNode | undefined;
   getConnectedInputs: (nodeId: string) => { images: string[]; text: string | null };
+  getImageHandleCount: (nodeId: string) => number;
   validateWorkflow: () => { valid: boolean; errors: string[] };
 
   // Global Image History
@@ -419,10 +420,10 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
     // Default dimensions based on node type
     const defaultDimensions: Record<NodeType, { width: number; height: number }> = {
-      imageInput: { width: 300, height: 280 },
-      annotation: { width: 300, height: 280 },
+      imageInput: { width: 300, height: 340 },
+      annotation: { width: 300, height: 300 },
       prompt: { width: 320, height: 220 },
-      nanoBanana: { width: 300, height: 300 },
+      nanoBanana: { width: 300, height: 360 },
       llmGenerate: { width: 320, height: 360 },
       splitGrid: { width: 300, height: 320 },
       output: { width: 320, height: 320 },
@@ -615,10 +616,10 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
     // Default dimensions per node type
     const defaultNodeDimensions: Record<string, { width: number; height: number }> = {
-      imageInput: { width: 300, height: 280 },
-      annotation: { width: 300, height: 280 },
+      imageInput: { width: 300, height: 340 },
+      annotation: { width: 300, height: 300 },
       prompt: { width: 320, height: 220 },
-      nanoBanana: { width: 300, height: 300 },
+      nanoBanana: { width: 300, height: 360 },
       llmGenerate: { width: 320, height: 360 },
       splitGrid: { width: 300, height: 320 },
       output: { width: 320, height: 320 },
@@ -774,13 +775,28 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
     edges
       .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => {
+        // Sort image handles by index to maintain order (image-0, image-1, etc.)
+        const aHandle = a.targetHandle;
+        const bHandle = b.targetHandle;
+
+        // Extract index from handle IDs like "image-0", "image-1"
+        if (aHandle?.startsWith('image-') && bHandle?.startsWith('image-')) {
+          const aIndex = parseInt(aHandle.split('-')[1], 10);
+          const bIndex = parseInt(bHandle.split('-')[1], 10);
+          return aIndex - bIndex;
+        }
+        // Non-image-N handles or old "image" handles go last
+        return 0;
+      })
       .forEach((edge) => {
         const sourceNode = nodes.find((n) => n.id === edge.source);
         if (!sourceNode) return;
 
         const handleId = edge.targetHandle;
 
-        if (handleId === "image" || !handleId) {
+        // Support both "image" and "image-N" patterns
+        if (handleId === "image" || handleId?.startsWith("image-") || !handleId) {
           // Get image from source node - collect all connected images
           if (sourceNode.type === "imageInput") {
             const sourceImage = (sourceNode.data as ImageInputNodeData).image;
@@ -804,6 +820,14 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       });
 
     return { images, text };
+  },
+
+  getImageHandleCount: (nodeId: string) => {
+    const { edges } = get();
+    // Count connections with image-N handle pattern
+    return edges.filter(e =>
+      e.target === nodeId && e.targetHandle?.startsWith('image-')
+    ).length;
   },
 
   validateWorkflow: () => {

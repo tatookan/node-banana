@@ -56,6 +56,16 @@ const edgeTypes: EdgeTypes = {
 // Maximum number of input images for image generation nodes
 const MAX_INPUT_IMAGES = 14;
 
+// Helper function to extract handle type from handle ID
+// Supports both "image"/"text" and "image-0"/"image-1" patterns
+const getHandleType = (handleId: string | null | undefined): "image" | "text" | null => {
+  if (!handleId) return null;
+  if (handleId === "image" || handleId === "text") return handleId;
+  // Match "image-{number}" pattern
+  if (handleId.startsWith("image-")) return "image";
+  return null;
+};
+
 // Connection validation rules
 // - Image handles (green) can only connect to image handles
 // - Text handles (blue) can only connect to text handles
@@ -70,35 +80,33 @@ const isValidConnection = (
   const sourceHandle = connection.sourceHandle;
   const targetHandle = connection.targetHandle;
 
+  // Extract handle types (supports both "image" and "image-N" patterns)
+  const sourceHandleType = getHandleType(sourceHandle);
+  const targetHandleType = getHandleType(targetHandle);
+
   // Strict type matching: image <-> image, text <-> text
-  if (sourceHandle === "image" && targetHandle !== "image") {
+  if (sourceHandleType && targetHandleType && sourceHandleType !== targetHandleType) {
     logger.warn('connection.validation', 'Connection validation failed: type mismatch', {
       source: connection.source,
       target: connection.target,
       sourceHandle,
       targetHandle,
-      reason: 'Cannot connect image handle to non-image handle',
-    });
-    return false;
-  }
-  if (sourceHandle === "text" && targetHandle !== "text") {
-    logger.warn('connection.validation', 'Connection validation failed: type mismatch', {
-      source: connection.source,
-      target: connection.target,
-      sourceHandle,
-      targetHandle,
-      reason: 'Cannot connect text handle to non-text handle',
+      sourceHandleType,
+      targetHandleType,
+      reason: `Cannot connect ${sourceHandleType} handle to ${targetHandleType} handle`,
     });
     return false;
   }
 
   // Check image input limit for nanoBanana and llmGenerate nodes
-  if (targetHandle === "image" && nodes.length > 0) {
+  if (targetHandleType === "image" && nodes.length > 0) {
     const targetNode = nodes.find(n => n.id === connection.target);
     if (targetNode && (targetNode.type === "nanoBanana" || targetNode.type === "llmGenerate")) {
-      // Count existing image input connections to this node
+      // Count existing image input connections to this node (supports both "image" and "image-N" patterns)
       const existingImageConnections = edges.filter(
-        e => e.target === connection.target && e.targetHandle === "image"
+        e => e.target === connection.target && (
+          e.targetHandle === "image" || e.targetHandle?.startsWith("image-")
+        )
       ).length;
 
       if (existingImageConnections >= MAX_INPUT_IMAGES) {
@@ -127,7 +135,8 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
     case "prompt":
       return { inputs: [], outputs: ["text"] };
     case "nanoBanana":
-      return { inputs: ["image", "text"], outputs: ["image"] };
+      // image-* indicates multiple numbered image handles (image-0, image-1, etc.)
+      return { inputs: ["image-*", "text"], outputs: ["image"] };
     case "llmGenerate":
       return { inputs: ["text", "image"], outputs: ["text"] };
     case "splitGrid":

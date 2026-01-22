@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { Handle, Position, NodeProps, Node, useReactFlow } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore, saveNanoBananaDefaults } from "@/store/workflowStore";
-import { NanoBananaNodeData, AspectRatio, Resolution, ModelType } from "@/types";
+import { NanoBananaNodeData, AspectRatio, Resolution, ModelType, ImageInputNodeData, AnnotationNodeData } from "@/types";
 import { cacheManager } from "@/lib/cacheManager";
 import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
 
@@ -26,10 +26,40 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const generationsPath = useWorkflowStore((state) => state.generationsPath);
   const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
+  const edges = useWorkflowStore((state) => state.edges);
+  const nodes = useWorkflowStore((state) => state.nodes);
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { setNodes } = useReactFlow();
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Get connected source nodes with their images
+  const connectedInputImages = useMemo(() => {
+    const imageInputs: Array<{ nodeId: string; image: string; index: number }> = [];
+
+    edges
+      .filter((edge) => edge.target === id && edge.targetHandle === "image")
+      .forEach((edge) => {
+        const sourceNode = nodes.find((n) => n.id === edge.source);
+        if (!sourceNode) return;
+
+        let image: string | null = null;
+
+        if (sourceNode.type === "imageInput") {
+          image = (sourceNode.data as ImageInputNodeData).image;
+        } else if (sourceNode.type === "annotation") {
+          image = (sourceNode.data as AnnotationNodeData).outputImage;
+        } else if (sourceNode.type === "nanoBanana") {
+          image = (sourceNode.data as NanoBananaNodeData).outputImage;
+        }
+
+        if (image) {
+          imageInputs.push({ nodeId: sourceNode.id, image, index: imageInputs.length });
+        }
+      });
+
+    return imageInputs;
+  }, [edges, nodes, id]);
 
   // Dynamically adjust node height when advanced settings are toggled
   useEffect(() => {
@@ -233,6 +263,30 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
       />
 
       <div ref={contentRef} className="flex-1 flex flex-col min-h-0 gap-2">
+        {/* Connected input images thumbnails */}
+        {connectedInputImages.length > 0 && (
+          <div className="flex gap-1 shrink-0 overflow-x-auto pb-1">
+            {connectedInputImages.map((item) => (
+              <div
+                key={item.nodeId}
+                className="relative shrink-0 w-10 h-10 rounded border border-neutral-700 overflow-hidden cursor-pointer hover:border-neutral-500 transition-colors group"
+                onClick={() => openImagePreview(item.image, `输入图片 ${item.index + 1}`)}
+                title={`输入图片 ${item.index + 1} - 双击查看大图`}
+              >
+                <img
+                  src={item.image}
+                  alt={`输入 ${item.index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {/* Number badge */}
+                <div className="absolute top-0 left-0 bg-emerald-600 text-white text-[8px] font-bold px-1 rounded-br">
+                  {item.index + 1}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Preview area */}
         {nodeData.outputImage ? (
           <>
