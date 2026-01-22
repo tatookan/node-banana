@@ -111,6 +111,7 @@ export interface AnnotationNodeData extends BaseNodeData {
 // Prompt Node Data
 export interface PromptNodeData extends BaseNodeData {
   prompt: string;
+  resonanceMode: boolean;  // 共鸣模式：将提示词重复3次以增强效果
 }
 
 // Image History Item (for tracking generated images)
@@ -147,6 +148,9 @@ export interface NanoBananaNodeData extends BaseNodeData {
   error: string | null;
   imageHistory: CarouselImageItem[]; // Carousel history (IDs only)
   selectedHistoryIndex: number; // Currently selected image in carousel
+  resonanceMode: boolean;  // 共鸣模式：将提示词重复3次以增强效果
+  systemPrompt: string;    // 系统提示词：指导模型如何生成
+  topP: number;            // Top P 采样参数 (0-1)
   // Seed & Cache fields
   seed?: number;           // Current seed value
   seedFixed?: boolean;     // Whether seed is fixed by user
@@ -166,6 +170,9 @@ export interface LLMGenerateNodeData extends BaseNodeData {
   maxTokens: number;
   status: NodeStatus;
   error: string | null;
+  resonanceMode: boolean;  // 共鸣模式：将提示词重复3次以增强效果
+  systemPrompt: string;    // 系统提示词：指导模型如何生成
+  topP: number;            // Top P 采样参数 (0-1)
   // Seed & Cache fields
   seed?: number;           // Current seed value
   seedFixed?: boolean;     // Whether seed is fixed by user
@@ -237,6 +244,9 @@ export interface GenerateRequest {
   resolution?: Resolution; // Only for Nano Banana Pro
   model?: ModelType;
   useGoogleSearch?: boolean; // Only for Nano Banana Pro
+  resonanceMode?: boolean;  // 共鸣模式：将提示词重复3次以增强效果
+  systemPrompt?: string;    // 系统提示词：指导模型如何生成
+  topP?: number;            // Top P 采样参数 (0-1)
 }
 
 export interface GenerateResponse {
@@ -253,6 +263,9 @@ export interface LLMGenerateRequest {
   model: LLMModelType;
   temperature?: number;
   maxTokens?: number;
+  resonanceMode?: boolean;  // 共鸣模式：将提示词重复3次以增强效果
+  systemPrompt?: string;    // 系统提示词：指导模型如何生成
+  topP?: number;            // Top P 采样参数 (0-1)
 }
 
 export interface LLMGenerateResponse {

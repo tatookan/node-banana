@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { LLMGenerateRequest, LLMGenerateResponse, LLMModelType } from "@/types";
 import { logger } from "@/utils/logger";
 import { recordLLMUsage, getUserIdFromToken } from "@/lib/usageTracker";
+import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
 
 export const maxDuration = 60; // 1 minute timeout
 
@@ -29,7 +30,9 @@ async function generateWithGoogle(
   temperature: number,
   maxTokens: number,
   images?: string[],
-  requestId?: string
+  requestId?: string,
+  systemPrompt?: string,
+  topP?: number
 ): Promise<string> {
   // Initialize Google GenAI client with API Key for Vertex AI
   const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
@@ -103,6 +106,12 @@ async function generateWithGoogle(
     config: {
       temperature,
       maxOutputTokens: maxTokens,
+      ...(systemPrompt && {
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        }
+      }),
+      ...(topP !== undefined && { topP }),
     },
   });
 
@@ -232,7 +241,10 @@ export async function POST(request: NextRequest) {
       provider,
       model,
       temperature = 0.7,
-      maxTokens = 1024
+      maxTokens = 1024,
+      resonanceMode = true,  // 默认开启共鸣模式
+      systemPrompt,
+      topP
     } = body;
 
     logger.info('api.llm', 'LLM generation request received', {
@@ -254,12 +266,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 应用提示词增强：根据共鸣模式设置决定是否重复3次
+    const finalPrompt = resonanceMode
+      ? (() => {
+          const enhancementResult = enhancePrompt(prompt, 3);
+          if (enhancementResult.wasEnhanced) {
+            logPromptEnhancement(enhancementResult, `LLM:${requestId}`);
+          }
+          return enhancementResult.enhanced;
+        })()
+      : prompt;
+
     let text: string;
 
     if (provider === "google") {
-      text = await generateWithGoogle(prompt, model, temperature, maxTokens, images, requestId);
+      text = await generateWithGoogle(finalPrompt, model, temperature, maxTokens, images, requestId, systemPrompt, topP);
     } else if (provider === "openai") {
-      text = await generateWithOpenAI(prompt, model, temperature, maxTokens, images, requestId);
+      text = await generateWithOpenAI(finalPrompt, model, temperature, maxTokens, images, requestId);
     } else {
       logger.warn('api.llm', 'Unknown provider requested', { requestId, provider });
       return NextResponse.json<LLMGenerateResponse>(

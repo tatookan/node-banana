@@ -184,6 +184,7 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
     case "prompt":
       return {
         prompt: "",
+        resonanceMode: true,  // 默认开启共鸣模式
       } as PromptNodeData;
     case "nanoBanana": {
       const defaults = loadNanoBananaDefaults();
@@ -199,6 +200,9 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         error: null,
         imageHistory: [],
         selectedHistoryIndex: 0,
+        resonanceMode: true,  // 默认开启共鸣模式
+        systemPrompt: "",     // 默认空系统提示词
+        topP: 0.95,           // 默认 Top P
       } as NanoBananaNodeData;
     }
     case "llmGenerate":
@@ -212,6 +216,9 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         maxTokens: 8192,
         status: "idle",
         error: null,
+        resonanceMode: true,  // 默认开启共鸣模式
+        systemPrompt: "",     // 默认空系统提示词
+        topP: 0.95,           // 默认 Top P
       } as LLMGenerateNodeData;
     case "splitGrid":
       return {
@@ -1070,6 +1077,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 resolution: nodeData.resolution,
                 model: nodeData.model,
                 useGoogleSearch: nodeData.useGoogleSearch,
+                resonanceMode: nodeData.resonanceMode ?? true,
+                ...(nodeData.systemPrompt && { systemPrompt: nodeData.systemPrompt }),
+                ...(nodeData.topP !== undefined && { topP: nodeData.topP }),
               };
 
               logger.info('api.gemini', 'Calling Gemini API for image generation', {
@@ -1329,6 +1339,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                   model: nodeData.model,
                   temperature: nodeData.temperature,
                   maxTokens: nodeData.maxTokens,
+                  resonanceMode: nodeData.resonanceMode ?? true,
+                  ...(nodeData.systemPrompt && { systemPrompt: nodeData.systemPrompt }),
+                  ...(nodeData.topP !== undefined && { topP: nodeData.topP }),
                 }),
               });
 

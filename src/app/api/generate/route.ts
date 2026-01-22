@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GenerateRequest, GenerateResponse, ModelType, Resolution } from "@/types";
 import { recordImageGeneration, getUserIdFromToken } from "@/lib/usageTracker";
 import { uploadGeneratedImageInBackground } from "@/lib/r2-upload";
+import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
         { status: 413 }
       );
     }
-    const { images, prompt, model = "nano-banana-pro", aspectRatio, resolution, useGoogleSearch } = body;
+    const { images, prompt, model = "nano-banana-pro", aspectRatio, resolution, useGoogleSearch, resonanceMode = true, systemPrompt, topP } = body;
 
     const modelId = MODEL_MAP[model];
     console.log(`[API:${requestId}] Request parameters:`);
@@ -98,6 +99,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 应用提示词增强：根据共鸣模式设置决定是否重复3次
+    const finalPrompt = resonanceMode
+      ? (() => {
+          const enhancementResult = enhancePrompt(prompt, 3);
+          if (enhancementResult.wasEnhanced) {
+            logPromptEnhancement(enhancementResult, `Generate:${requestId}`);
+          }
+          return enhancementResult.enhanced;
+        })()
+      : prompt;
+
     console.log(`[API:${requestId}] Extracting image data...`);
     // Extract base64 data and MIME types from data URLs
     const imageData = (images || []).map((image, idx) => {
@@ -113,10 +125,10 @@ export async function POST(request: NextRequest) {
       return { data: image, mimeType: "image/png" };
     });
 
-    // Build request parts array with prompt and all images
+    // Build request parts array with final prompt and all images
     console.log(`[API:${requestId}] Building request parts...`);
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-      { text: prompt },
+      { text: finalPrompt },
       ...imageData.map(({ data, mimeType }) => ({
         inlineData: {
           mimeType,
@@ -129,11 +141,25 @@ export async function POST(request: NextRequest) {
     // Build config object
     console.log(`[API:${requestId}] Building generation config...`);
     const config: any = {
-      responseModalities: ["IMAGE", "TEXT"],
+      responseModalities: ["TEXT", "IMAGE"],  // TEXT first, then IMAGE (per official docs)
     };
 
+    // Add system instruction if provided
+    if (systemPrompt && systemPrompt.trim()) {
+      config.systemInstruction = {
+        parts: [{ text: systemPrompt.trim() }]
+      };
+      console.log(`[API:${requestId}]   System prompt: ${systemPrompt.substring(0, 100)}${systemPrompt.length > 100 ? "..." : ""}`);
+    }
+
+    // Add topP if provided
+    if (topP !== undefined) {
+      config.topP = topP;
+      console.log(`[API:${requestId}]   Top P: ${topP}`);
+    }
+
     // Build imageConfig - both models support aspect ratio, resolution, and outputMimeType
-    // JavaScript SDK 使用 camelCase，Cloudflare Worker 会转换为 snake_case
+    // Cloudflare Worker 会深度转换所有 camelCase 到 snake_case
     const imageConfig: any = {};
 
     if (aspectRatio) {

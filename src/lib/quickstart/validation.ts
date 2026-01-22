@@ -202,6 +202,7 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
     case "prompt":
       return {
         prompt: "",
+        resonanceMode: true,
       };
     case "nanoBanana":
       return {
@@ -216,6 +217,9 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         error: null,
         imageHistory: [],
         selectedHistoryIndex: 0,
+        resonanceMode: true,
+        systemPrompt: "",
+        topP: 0.95,
       };
     case "llmGenerate":
       return {
@@ -228,6 +232,9 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         maxTokens: 8192,
         status: "idle",
         error: null,
+        resonanceMode: true,
+        systemPrompt: "",
+        topP: 0.95,
       };
     case "splitGrid":
       return {

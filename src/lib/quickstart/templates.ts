@@ -67,6 +67,7 @@ const createImageInputData = (imageUrl: string | null = null, filename: string |
 
 const createPromptData = (prompt: string = "") => ({
   prompt,
+  resonanceMode: true,
 });
 
 const createNanoBananaData = () => ({
@@ -81,6 +82,9 @@ const createNanoBananaData = () => ({
   error: null,
   imageHistory: [],
   selectedHistoryIndex: 0,
+  resonanceMode: true,
+  systemPrompt: "",
+  topP: 0.95,
 });
 
 const createLLMGenerateData = () => ({
@@ -93,6 +97,9 @@ const createLLMGenerateData = () => ({
   maxTokens: 8192,
   status: "idle" as const,
   error: null,
+  resonanceMode: true,
+  systemPrompt: "",
+  topP: 0.95,
 });
 
 const createAnnotationData = () => ({

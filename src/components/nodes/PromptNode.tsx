@@ -7,6 +7,7 @@ import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { PromptNodeData } from "@/types";
 import { PromptEditorModal } from "@/components/modals/PromptEditorModal";
+import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
 
 type PromptNodeType = Node<PromptNodeData, "prompt">;
 
@@ -59,6 +60,13 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
           placeholder="描述要生成的内容..."
           className="nodrag nopan nowheel w-full flex-1 min-h-[70px] p-2 text-xs leading-relaxed text-neutral-100 border border-neutral-700 rounded bg-neutral-900/50 resize-none focus:outline-none focus:ring-1 focus:ring-neutral-600 focus:border-neutral-600 placeholder:text-neutral-500"
         />
+
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-700/50">
+          <ResonanceModeToggle
+            enabled={nodeData.resonanceMode ?? true}
+            onToggle={(enabled) => updateNodeData(id, { resonanceMode: enabled })}
+          />
+        </div>
 
         <Handle
           type="source"
