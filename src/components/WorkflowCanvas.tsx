@@ -25,6 +25,7 @@ import {
   LLMGenerateNode,
   SplitGridNode,
   OutputNode,
+  Three360ControlNode,
 } from "./nodes";
 import { EditableEdge, ReferenceEdge } from "./edges";
 import { ConnectionDropMenu, MenuAction } from "./ConnectionDropMenu";
@@ -46,6 +47,7 @@ const nodeTypes: NodeTypes = {
   llmGenerate: LLMGenerateNode,
   splitGrid: SplitGridNode,
   output: OutputNode,
+  three360Control: Three360ControlNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -143,6 +145,8 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
       return { inputs: ["image"], outputs: ["reference"] };
     case "output":
       return { inputs: ["image"], outputs: [] };
+    case "three360Control":
+      return { inputs: ["image"], outputs: ["text"] };
     default:
       return { inputs: [], outputs: [] };
   }
@@ -753,6 +757,9 @@ export function WorkflowCanvas() {
           case "a":
             nodeType = "annotation";
             break;
+          case "3":
+            nodeType = "three360Control";
+            break;
         }
 
         if (nodeType) {
@@ -767,6 +774,7 @@ export function WorkflowCanvas() {
             llmGenerate: { width: 320, height: 360 },
             splitGrid: { width: 300, height: 320 },
             output: { width: 320, height: 320 },
+            three360Control: { width: 380, height: 580 },
           };
           const dims = defaultDimensions[nodeType];
           addNode(nodeType, { x: centerX - dims.width / 2, y: centerY - dims.height / 2 });

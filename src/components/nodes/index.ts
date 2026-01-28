@@ -6,3 +6,4 @@ export { LLMGenerateNode } from "./LLMGenerateNode";
 export { SplitGridNode } from "./SplitGridNode";
 export { OutputNode } from "./OutputNode";
 export { GroupNode } from "./GroupNode";
+export { Three360ControlNode } from "./Three360ControlNode";

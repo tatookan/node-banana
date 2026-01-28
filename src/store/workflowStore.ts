@@ -19,6 +19,7 @@ import {
   LLMGenerateNodeData,
   SplitGridNodeData,
   OutputNodeData,
+  Three360ControlNodeData,
   WorkflowNodeData,
   ImageHistoryItem,
   WorkflowSaveConfig,
@@ -243,6 +244,20 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
       return {
         image: null,
       } as OutputNodeData;
+    case "three360Control":
+      return {
+        inputImage: null,
+        horizontalRotation: 0,      // 水平旋转量 (0-360)
+        verticalAngle: 0,           // 垂直角度 (-90 to 90)
+        distance: 5.0,              // 视距 (0.1-10.0)
+        fov: 30.0,                  // 视场角 (10-90)
+        targetHeight: 0.5,          // 聚焦高度 (-10 to 20)
+        initialViewAngle: "Front",  // 初始图片视角
+        outputPrompt: null,
+        spatialJson: null,
+        status: "idle",
+        error: null,
+      } as Three360ControlNodeData;
   }
 };
 
@@ -427,6 +442,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       llmGenerate: { width: 320, height: 360 },
       splitGrid: { width: 300, height: 320 },
       output: { width: 320, height: 320 },
+      three360Control: { width: 380, height: 580 },
     };
 
     const { width, height } = defaultDimensions[type];
@@ -815,6 +831,8 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             text = (sourceNode.data as PromptNodeData).prompt;
           } else if (sourceNode.type === "llmGenerate") {
             text = (sourceNode.data as LLMGenerateNodeData).outputText;
+          } else if (sourceNode.type === "three360Control") {
+            text = (sourceNode.data as Three360ControlNodeData).outputPrompt;
           }
         }
       });

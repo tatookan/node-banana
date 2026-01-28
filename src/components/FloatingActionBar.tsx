@@ -135,6 +135,17 @@ function GenerateComboButton() {
             </svg>
             文本 (LLM)
           </button>
+          <button
+            onClick={() => handleAddNode("three360Control")}
+            draggable
+            onDragStart={(e) => handleDragStart(e, "three360Control")}
+            className="w-full px-3 py-2 text-left text-[11px] font-medium text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors flex items-center gap-2 cursor-grab active:cursor-grabbing"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0-2.25l-2.25 1.313m-2.25-1.313l2.25-1.313M12 10.5v2.25m0-2.25l2.25 1.313m-2.25-1.313l-2.25 1.313" />
+            </svg>
+            360° 相机控制
+          </button>
         </div>
       )}
     </div>

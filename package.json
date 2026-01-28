@@ -16,6 +16,7 @@
     "@aws-sdk/s3-request-presigner": "^3.971.0",
     "@google/genai": "^1.37.0",
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/three": "^0.182.0",
     "@xyflow/react": "^12.9.3",
     "autoprefixer": "^10.4.22",
     "bcrypt": "^6.0.0",
@@ -30,6 +31,7 @@
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.1",
     "tailwindcss": "^4.1.17",
+    "three": "^0.182.0",
     "undici": "^7.18.2",
     "zustand": "^5.0.9"
   },

@@ -8,7 +8,8 @@ export type NodeType =
   | "nanoBanana"
   | "llmGenerate"
   | "splitGrid"
-  | "output";
+  | "output"
+  | "three360Control";
 
 // Aspect Ratios (supported by both Nano Banana and Nano Banana Pro)
 export type AspectRatio = "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9";
@@ -180,6 +181,31 @@ export interface LLMGenerateNodeData extends BaseNodeData {
   cached?: boolean;        // Whether current output is from cache
 }
 
+// Initial view angle for 360 camera control
+export type InitialViewAngle = "Front" | "Back" | "Left" | "Right";
+
+// Three 360 Control Node Data (360度相机角度控制节点)
+export interface Three360ControlNodeData extends BaseNodeData {
+  // Input
+  inputImage: string | null;
+  inputImageRef?: string;  // External image reference for storage optimization
+
+  // Camera parameters
+  horizontalRotation: number;      // 水平旋转量 (0-360)
+  verticalAngle: number;           // 垂直角度 (-90 to 90)
+  distance: number;                // 视距 (0.1-10.0)
+  fov: number;                     // 视场角 (10-90)
+  targetHeight: number;            // 聚焦高度 (-10 to 20)
+  initialViewAngle: InitialViewAngle;  // 初始图片视角
+
+  // Output
+  outputPrompt: string | null;     // 生成的360度控制提示词
+  spatialJson: string | null;      // 空间坐标JSON数据
+
+  status: NodeStatus;
+  error: string | null;
+}
+
 // Output Node Data
 export interface OutputNodeData extends BaseNodeData {
   image: string | null;
@@ -218,7 +244,8 @@ export type WorkflowNodeData =
   | NanoBananaNodeData
   | LLMGenerateNodeData
   | SplitGridNodeData
-  | OutputNodeData;
+  | OutputNodeData
+  | Three360ControlNodeData;
 
 // Workflow Node with typed data (extended with optional groupId)
 export type WorkflowNode = Node<WorkflowNodeData, NodeType> & {
