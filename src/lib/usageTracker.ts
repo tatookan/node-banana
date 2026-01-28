@@ -58,19 +58,23 @@ export async function recordLLMUsage(
   cost?: number
 ): Promise<void> {
   try {
+    // 汇率: 1 USD = 7 RMB (与图像生成价格换算保持一致)
+    const USD_TO_RMB = 7;
+
     // Approximate cost calculation if not provided
     // Google: ~$0.075 per 1M tokens (flash), ~$1.25 per 1M tokens (pro)
     // OpenAI: ~$0.15 per 1M tokens (gpt-4.1-mini), ~$0.15 per 1M tokens (gpt-4.1-nano)
+    // 价格为美元，需要转换为人民币
     const calculatedCost =
       cost ??
       (() => {
         if (provider === 'google') {
-          if (model.startsWith('gemini-2.5')) return (tokens / 1_000_000) * 0.075;
-          if (model.startsWith('gemini-3-flash')) return (tokens / 1_000_000) * 0.075;
-          if (model.startsWith('gemini-3-pro')) return (tokens / 1_000_000) * 1.25;
+          if (model.startsWith('gemini-2.5')) return (tokens / 1_000_000) * 0.075 * USD_TO_RMB;
+          if (model.startsWith('gemini-3-flash')) return (tokens / 1_000_000) * 0.075 * USD_TO_RMB;
+          if (model.startsWith('gemini-3-pro')) return (tokens / 1_000_000) * 1.25 * USD_TO_RMB;
         } else if (provider === 'openai') {
-          if (model.startsWith('gpt-4.1-mini')) return (tokens / 1_000_000) * 0.15;
-          if (model.startsWith('gpt-4.1-nano')) return (tokens / 1_000_000) * 0.15;
+          if (model.startsWith('gpt-4.1-mini')) return (tokens / 1_000_000) * 0.15 * USD_TO_RMB;
+          if (model.startsWith('gpt-4.1-nano')) return (tokens / 1_000_000) * 0.15 * USD_TO_RMB;
         }
         return 0;
       })();
