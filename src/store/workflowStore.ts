@@ -16,6 +16,7 @@ import {
   AnnotationNodeData,
   PromptNodeData,
   NanoBananaNodeData,
+  ViduGenerateNodeData,
   LLMGenerateNodeData,
   SplitGridNodeData,
   OutputNodeData,
@@ -207,6 +208,23 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         topP: 0.95,           // 默认 Top P
       } as NanoBananaNodeData;
     }
+    case "viduGenerate":
+      return {
+        inputImages: [],
+        inputPrompt: null,
+        outputImage: null,
+        model: "viduq2",
+        aspectRatio: "16:9",
+        resolution: "1080p",
+        status: "idle",
+        error: null,
+        taskId: null,
+        taskState: null,
+        taskProgress: null,
+        imageHistory: [],
+        selectedHistoryIndex: 0,
+        offPeak: true,  // 默认开启错峰模式，降低成本
+      } as ViduGenerateNodeData;
     case "llmGenerate":
       return {
         inputPrompt: null,
@@ -439,6 +457,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       annotation: { width: 300, height: 300 },
       prompt: { width: 320, height: 220 },
       nanoBanana: { width: 300, height: 360 },
+      viduGenerate: { width: 300, height: 360 },
       llmGenerate: { width: 320, height: 360 },
       splitGrid: { width: 300, height: 320 },
       output: { width: 320, height: 320 },
@@ -822,6 +841,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             if (sourceImage) images.push(sourceImage);
           } else if (sourceNode.type === "nanoBanana") {
             const sourceImage = (sourceNode.data as NanoBananaNodeData).outputImage;
+            if (sourceImage) images.push(sourceImage);
+          } else if (sourceNode.type === "viduGenerate") {
+            const sourceImage = (sourceNode.data as ViduGenerateNodeData).outputImage;
             if (sourceImage) images.push(sourceImage);
           }
         }
@@ -1277,6 +1299,236 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               updateNodeData(node.id, {
                 status: "error",
                 error: errorMessage,
+              });
+              set({ isRunning: false, currentNodeId: null });
+              await logger.endSession();
+              return;
+            }
+            break;
+          }
+
+          case "viduGenerate": {
+            const { images, text } = getConnectedInputs(node.id);
+
+            // viduq1 model requires at least 1 image
+            const nodeData = node.data as ViduGenerateNodeData;
+            if (nodeData.model === "viduq1" && images.length === 0) {
+              logger.error('node.error', 'viduq1 node requires at least 1 image input', {
+                nodeId: node.id,
+              });
+              updateNodeData(node.id, {
+                status: "error",
+                error: "viduq1 model requires at least 1 input image",
+              });
+              set({ isRunning: false, currentNodeId: null });
+              await logger.endSession();
+              return;
+            }
+
+            if (!text) {
+              logger.error('node.error', 'viduGenerate node missing text input', {
+                nodeId: node.id,
+              });
+              updateNodeData(node.id, {
+                status: "error",
+                error: "Missing text input",
+              });
+              set({ isRunning: false, currentNodeId: null });
+              await logger.endSession();
+              return;
+            }
+
+            updateNodeData(node.id, {
+              inputImages: images,
+              inputPrompt: text,
+              status: "loading",
+              error: null,
+              taskState: "created",
+            });
+
+            try {
+              // Generate or use existing seed
+              const currentSeed = nodeData.seedFixed && nodeData.lastSeed
+                ? nodeData.lastSeed
+                : Math.floor(Math.random() * 2147483647);
+
+              // Update seed before API call
+              updateNodeData(node.id, {
+                lastSeed: currentSeed,
+                seed: currentSeed,
+              });
+
+              const requestPayload = {
+                images,
+                prompt: text,
+                model: nodeData.model,
+                aspect_ratio: nodeData.aspectRatio,
+                resolution: nodeData.resolution,
+                seed: currentSeed,
+                offPeak: nodeData.offPeak ?? true,
+              };
+
+              logger.info('api.vidu', 'Calling VIDU API for image generation', {
+                nodeId: node.id,
+                model: nodeData.model,
+                aspectRatio: nodeData.aspectRatio,
+                resolution: nodeData.resolution,
+                imageCount: images.length,
+                prompt: text,
+                seed: currentSeed,
+                offPeak: nodeData.offPeak ?? true,
+              });
+
+              const response = await fetch("/api/generate-vidu", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(requestPayload),
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                  const errorJson = JSON.parse(errorText);
+                  errorMessage = errorJson.error || errorMessage;
+                } catch {
+                  if (errorText) errorMessage += ` - ${errorText.substring(0, 200)}`;
+                }
+
+                logger.error('api.error', 'VIDU API request failed', {
+                  nodeId: node.id,
+                  status: response.status,
+                  statusText: response.statusText,
+                  errorMessage,
+                });
+
+                updateNodeData(node.id, {
+                  status: "error",
+                  error: errorMessage,
+                  taskState: "failed",
+                });
+                set({ isRunning: false, currentNodeId: null });
+                await logger.endSession();
+                return;
+              }
+
+              const result = await response.json();
+
+              if (result.success && result.taskId) {
+                logger.info('api.vidu', 'VIDU task created successfully, polling for result', {
+                  nodeId: node.id,
+                  taskId: result.taskId,
+                });
+
+                // Backend polling for task completion
+                let pollAttempts = 0;
+                const maxPollAttempts = 300; // 最多轮询 300 次 (10分钟)
+                const pollInterval = 2000; // 每 2 秒
+
+                while (pollAttempts < maxPollAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, pollInterval));
+                  pollAttempts++;
+
+                  try {
+                    const pollResponse = await fetch(`/api/vidu-task/${result.taskId}`);
+                    const pollResult = await pollResponse.json();
+
+                    console.log(`[VIDU-POLL-STORE] Node ${node.id}, pollResult:`, {
+                      success: pollResult.success,
+                      hasImage: !!pollResult.image,
+                      error: pollResult.error,
+                      progress: pollResult.progress,
+                    });
+
+                    if (pollResult.success && pollResult.image) {
+                      logger.info('api.vidu', 'VIDU task completed successfully', {
+                        nodeId: node.id,
+                        taskId: result.taskId,
+                        pollAttempts,
+                      });
+
+                      updateNodeData(node.id, {
+                        outputImage: pollResult.image,
+                        status: "complete",
+                        taskState: "success",
+                        taskId: result.taskId,
+                        error: null,
+                      });
+                      break;
+                    } else if (pollResult.error) {
+                      if (!pollResult.error.includes("still processing")) {
+                        logger.error('api.vidu', 'VIDU task failed', {
+                          nodeId: node.id,
+                          taskId: result.taskId,
+                          error: pollResult.error,
+                        });
+                        updateNodeData(node.id, {
+                          status: "error",
+                          error: pollResult.error,
+                          taskState: "failed",
+                          taskId: result.taskId,
+                        });
+                        set({ isRunning: false, currentNodeId: null });
+                        await logger.endSession();
+                        return;
+                      }
+                      // Still processing, update state
+                      const currentState = pollResult.error.includes("queueing") ? "queueing" : "processing";
+                      console.log(`[VIDU-POLL-STORE] Updating node ${node.id} with progress: ${pollResult.progress}, state: ${currentState}`);
+                      updateNodeData(node.id, {
+                        taskState: currentState,
+                        taskId: result.taskId,
+                        taskProgress: pollResult.progress ?? null,
+                      });
+                    }
+                  } catch (pollError) {
+                    console.error(`[VIDU-POLL-STORE] Poll error for node ${node.id}:`, pollError);
+                    // Continue polling on error
+                  }
+                }
+
+                if (pollAttempts >= maxPollAttempts) {
+                  logger.warn('api.vidu', 'VIDU task polling timeout, task still processing', {
+                    nodeId: node.id,
+                    taskId: result.taskId,
+                  });
+                  // 超时后保持 loading 状态，让前端继续轮询
+                  updateNodeData(node.id, {
+                    taskId: result.taskId,
+                    taskState: "processing",
+                  });
+                }
+              } else {
+                logger.error('api.error', 'VIDU API task creation failed', {
+                  nodeId: node.id,
+                  error: result.error,
+                });
+                updateNodeData(node.id, {
+                  status: "error",
+                  error: result.error || "Task creation failed",
+                  taskState: "failed",
+                });
+                set({ isRunning: false, currentNodeId: null });
+                await logger.endSession();
+                return;
+              }
+            } catch (error) {
+              let errorMessage = "VIDU generation failed";
+              if (error instanceof Error) {
+                errorMessage = error.message;
+              }
+
+              logger.error('node.error', 'viduGenerate node execution failed', {
+                nodeId: node.id,
+                errorMessage,
+              }, error instanceof Error ? error : undefined);
+
+              updateNodeData(node.id, {
+                status: "error",
+                error: errorMessage,
+                taskState: "failed",
               });
               set({ isRunning: false, currentNodeId: null });
               await logger.endSession();

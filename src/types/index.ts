@@ -7,6 +7,7 @@ export type NodeType =
   | "prompt"
   | "nanoBanana"
   | "llmGenerate"
+  | "viduGenerate"
   | "splitGrid"
   | "output"
   | "three360Control";
@@ -30,6 +31,18 @@ export type LLMModelType =
   | "gemini-3-pro-preview"
   | "gpt-4.1-mini"
   | "gpt-4.1-nano";
+
+// VIDU Model Types
+export type ViduModelType = "viduq2" | "viduq1";
+
+// VIDU Aspect Ratios
+export type ViduAspectRatio = "16:9" | "9:16" | "1:1" | "3:4" | "4:3" | "21:9" | "2:3" | "3:2";
+
+// VIDU Resolution Options
+export type ViduResolution = "1080p" | "2K" | "4K";
+
+// VIDU Task State
+export type ViduTaskState = "created" | "queueing" | "processing" | "success" | "failed";
 
 // Node Status
 export type NodeStatus = "idle" | "loading" | "complete" | "error";
@@ -159,6 +172,31 @@ export interface NanoBananaNodeData extends BaseNodeData {
   cached?: boolean;        // Whether current output is from cache
 }
 
+// VIDU Generate Node Data (Image Generation via VIDU API)
+export interface ViduGenerateNodeData extends BaseNodeData {
+  inputImages: string[];
+  inputImageRefs?: string[];  // External image references for storage optimization
+  inputPrompt: string | null;
+  outputImage: string | null;
+  outputImageRef?: string;  // External image reference for storage optimization
+  model: ViduModelType;
+  aspectRatio: ViduAspectRatio;
+  resolution: ViduResolution;
+  status: NodeStatus;
+  error: string | null;
+  taskId: string | null;      // VIDU task ID for polling
+  taskState: ViduTaskState | null;  // Current task state
+  taskProgress: number | null;  // Task progress percentage (0-100)
+  imageHistory: CarouselImageItem[];
+  selectedHistoryIndex: number;
+  offPeak: boolean;           // 错峰模式：非高峰时段处理，成本更低
+  // Seed & Cache fields
+  seed?: number;           // Current seed value
+  seedFixed?: boolean;     // Whether seed is fixed by user
+  lastSeed?: number;       // Last used seed (for display)
+  cached?: boolean;        // Whether current output is from cache
+}
+
 // LLM Generate Node Data (Text Generation)
 export interface LLMGenerateNodeData extends BaseNodeData {
   inputPrompt: string | null;
@@ -242,6 +280,7 @@ export type WorkflowNodeData =
   | AnnotationNodeData
   | PromptNodeData
   | NanoBananaNodeData
+  | ViduGenerateNodeData
   | LLMGenerateNodeData
   | SplitGridNodeData
   | OutputNodeData
@@ -280,6 +319,48 @@ export interface GenerateResponse {
   success: boolean;
   image?: string;
   error?: string;
+}
+
+// API Request/Response types for VIDU Image Generation
+export interface ViduGenerateRequest {
+  model: ViduModelType;
+  images?: string[];  // Base64 data URLs or URLs
+  prompt: string;
+  seed?: number;
+  aspect_ratio?: ViduAspectRatio;
+  resolution?: ViduResolution;
+  payload?: string;
+  callback_url?: string;
+  offPeak?: boolean;  // 错峰模式：非高峰时段处理，成本更低
+}
+
+export interface ViduTaskResponse {
+  task_id: string;
+  state: ViduTaskState;
+  model: ViduModelType;
+  prompt: string;
+  images: string[];
+  seed: number;
+  aspect_ratio?: string;
+  resolution?: string;
+  callback_url?: string;
+  payload?: string;
+  credits: number;
+  created_at: string;
+}
+
+export interface ViduTaskResult extends ViduTaskResponse {
+  image_url?: string;  // Success: image URL
+  video_url?: string;  // Success: video URL (if video generation)
+  error?: string;      // Failed: error message
+}
+
+export interface ViduGenerateResponse {
+  success: boolean;
+  taskId?: string;
+  image?: string;
+  error?: string;
+  progress?: number;  // Task progress percentage (0-100)
 }
 
 // API Request/Response types for LLM Text Generation

@@ -22,6 +22,7 @@ import {
   AnnotationNode,
   PromptNode,
   NanoBananaNode,
+  ViduGenerateNode,
   LLMGenerateNode,
   SplitGridNode,
   OutputNode,
@@ -44,6 +45,7 @@ const nodeTypes: NodeTypes = {
   annotation: AnnotationNode,
   prompt: PromptNode,
   nanoBanana: NanoBananaNode,
+  viduGenerate: ViduGenerateNode,
   llmGenerate: LLMGenerateNode,
   splitGrid: SplitGridNode,
   output: OutputNode,
@@ -100,10 +102,10 @@ const isValidConnection = (
     return false;
   }
 
-  // Check image input limit for nanoBanana and llmGenerate nodes
+  // Check image input limit for nanoBanana, viduGenerate, and llmGenerate nodes
   if (targetHandleType === "image" && nodes.length > 0) {
     const targetNode = nodes.find(n => n.id === connection.target);
-    if (targetNode && (targetNode.type === "nanoBanana" || targetNode.type === "llmGenerate")) {
+    if (targetNode && (targetNode.type === "nanoBanana" || targetNode.type === "viduGenerate" || targetNode.type === "llmGenerate")) {
       // Count existing image input connections to this node (supports both "image" and "image-N" patterns)
       const existingImageConnections = edges.filter(
         e => e.target === connection.target && (
@@ -137,6 +139,9 @@ const getNodeHandles = (nodeType: string): { inputs: string[]; outputs: string[]
     case "prompt":
       return { inputs: [], outputs: ["text"] };
     case "nanoBanana":
+      // image-* indicates multiple numbered image handles (image-0, image-1, etc.)
+      return { inputs: ["image-*", "text"], outputs: ["image"] };
+    case "viduGenerate":
       // image-* indicates multiple numbered image handles (image-0, image-1, etc.)
       return { inputs: ["image-*", "text"], outputs: ["image"] };
     case "llmGenerate":
@@ -424,8 +429,8 @@ export function WorkflowCanvas() {
 
       // Get the output image from the source node
       let sourceImage: string | null = null;
-      if (sourceNode.type === "nanoBanana") {
-        sourceImage = (sourceNode.data as NanoBananaNodeData).outputImage;
+      if (sourceNode.type === "nanoBanana" || sourceNode.type === "viduGenerate") {
+        sourceImage = (sourceNode.data as { outputImage: string | null }).outputImage;
       } else if (sourceNode.type === "imageInput") {
         sourceImage = (sourceNode.data as { image: string | null }).image;
       } else if (sourceNode.type === "annotation") {
@@ -437,7 +442,7 @@ export function WorkflowCanvas() {
         return;
       }
 
-      const sourceNodeData = sourceNode.type === "nanoBanana" ? sourceNode.data as NanoBananaNodeData : null;
+      const sourceNodeData = (sourceNode.type === "nanoBanana" || sourceNode.type === "viduGenerate") ? sourceNode.data as NanoBananaNodeData : null;
       setIsSplitting(true);
 
       try {
@@ -511,6 +516,7 @@ export function WorkflowCanvas() {
       case "annotation":
         return (node.data as { outputImage: string | null }).outputImage;
       case "nanoBanana":
+      case "viduGenerate":
         return (node.data as { outputImage: string | null }).outputImage;
       default:
         return null;
@@ -555,13 +561,13 @@ export function WorkflowCanvas() {
       if (handleType === "image") {
         if (nodeType === "annotation" || nodeType === "output" || nodeType === "splitGrid") {
           targetHandleId = "image";
-        } else if (nodeType === "nanoBanana") {
+        } else if (nodeType === "nanoBanana" || nodeType === "viduGenerate") {
           targetHandleId = "image";
         } else if (nodeType === "imageInput") {
           sourceHandleIdForNewNode = "image";
         }
       } else if (handleType === "text") {
-        if (nodeType === "nanoBanana" || nodeType === "llmGenerate") {
+        if (nodeType === "nanoBanana" || nodeType === "viduGenerate" || nodeType === "llmGenerate") {
           targetHandleId = "text";
           // llmGenerate also has a text output
           if (nodeType === "llmGenerate") {
@@ -751,6 +757,9 @@ export function WorkflowCanvas() {
           case "g":
             nodeType = "nanoBanana";
             break;
+          case "v":
+            nodeType = "viduGenerate";
+            break;
           case "l":
             nodeType = "llmGenerate";
             break;
@@ -771,6 +780,7 @@ export function WorkflowCanvas() {
             annotation: { width: 300, height: 280 },
             prompt: { width: 320, height: 220 },
             nanoBanana: { width: 300, height: 300 },
+            viduGenerate: { width: 300, height: 360 },
             llmGenerate: { width: 320, height: 360 },
             splitGrid: { width: 300, height: 320 },
             output: { width: 320, height: 320 },
@@ -1210,12 +1220,16 @@ export function WorkflowCanvas() {
                 return "#f97316";
               case "nanoBanana":
                 return "#22c55e";
+              case "viduGenerate":
+                return "#3b82f6";
               case "llmGenerate":
                 return "#06b6d4";
               case "splitGrid":
                 return "#f59e0b";
               case "output":
                 return "#ef4444";
+              case "three360Control":
+                return "#a855f7";
               default:
                 return "#94a3b8";
             }

@@ -18,6 +18,7 @@ export type LogCategory =
   | 'node.execution'
   | 'node.error'
   | 'api.gemini'
+  | 'api.vidu'
   | 'api.openai'
   | 'api.llm'
   | 'api.error'

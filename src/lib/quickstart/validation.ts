@@ -29,9 +29,11 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { width: number; height: number }> = 
   annotation: { width: 300, height: 280 },
   prompt: { width: 320, height: 220 },
   nanoBanana: { width: 300, height: 300 },
+  viduGenerate: { width: 300, height: 360 },
   llmGenerate: { width: 320, height: 360 },
   splitGrid: { width: 300, height: 320 },
   output: { width: 320, height: 320 },
+  three360Control: { width: 380, height: 580 },
 };
 
 /**
@@ -221,6 +223,21 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         systemPrompt: "",
         topP: 0.95,
       };
+    case "viduGenerate":
+      return {
+        inputImages: [],
+        inputPrompt: null,
+        outputImage: null,
+        model: "viduq2",
+        aspectRatio: "16:9",
+        resolution: "1080p",
+        status: "idle",
+        error: null,
+        taskId: null,
+        taskState: null,
+        imageHistory: [],
+        selectedHistoryIndex: 0,
+      };
     case "llmGenerate":
       return {
         inputPrompt: null,
@@ -257,6 +274,25 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
     case "output":
       return {
         image: null,
+      };
+    case "three360Control":
+      return {
+        inputImage: null,
+        horizontalRotation: 0,
+        verticalAngle: 0,
+        distance: 5.0,
+        fov: 30.0,
+        targetHeight: 0.5,
+        initialViewAngle: "Front",
+        outputPrompt: null,
+        spatialJson: null,
+        status: "idle",
+        error: null,
+      };
+    default:
+      return {
+        prompt: "",
+        resonanceMode: true,
       };
   }
 }

@@ -194,7 +194,6 @@ export function Three360ControlNode({ id, data, selected }: NodeProps<Three360Co
           onPointerDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
           }}
           style={{ touchAction: 'none' }}
         >
