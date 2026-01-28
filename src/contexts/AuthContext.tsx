@@ -6,6 +6,7 @@ interface User {
   id: number;
   username: string;
   email: string;
+  role: 'user' | 'admin';
   created_at?: string;
   last_login?: string;
 }
@@ -14,6 +15,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (username: string, email: string, password: string, inviteCode: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
+        isAdmin: user?.role === 'admin',
         login,
         register,
         logout,

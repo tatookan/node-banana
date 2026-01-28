@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) {
       return NextResponse.json(
         { success: false, error: '登录已过期' },
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) {
       return NextResponse.json(
         { success: false, error: '登录已过期' },

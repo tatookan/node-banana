@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
 
     if (!payload) {
       return NextResponse.json(
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Get full user info from database
     const users = await query<any>(
-      'SELECT id, username, email, created_at, last_login FROM users WHERE id = ?',
+      'SELECT id, username, email, role, created_at, last_login FROM users WHERE id = ?',
       [payload.userId]
     );
 

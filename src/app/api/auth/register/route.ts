@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
       userId,
       username,
       email,
+      role: 'user', // New users are always 'user' role by default
     });
 
     console.log('[Auth:Register] User registered:', username);
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         username,
         email,
+        role: 'user',
       },
     });
 

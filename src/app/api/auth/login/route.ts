@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Find user by email
     const users = await query<any>(
-      'SELECT id, username, email, password_hash FROM users WHERE email = ?',
+      'SELECT id, username, email, password_hash, role FROM users WHERE email = ?',
       [email]
     );
 
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       username: user.username,
       email: user.email,
+      role: user.role || 'user',
     });
 
     console.log('[Auth:Login] Token generated for user:', user.username);
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || 'user',
       },
     });
 

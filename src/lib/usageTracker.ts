@@ -110,7 +110,7 @@ export async function getUserIdFromToken(
 
   try {
     const { verifyToken } = await import('@/lib/jwt');
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     return payload?.userId ?? null;
   } catch {
     return null;

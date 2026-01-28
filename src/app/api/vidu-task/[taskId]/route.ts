@@ -144,7 +144,7 @@ export async function GET(
   }
 }
 
-function handleTaskResult(result: ViduTaskResult, requestId: string): NextResponse<ViduGenerateResponse> {
+async function handleTaskResult(result: ViduTaskResult, requestId: string): Promise<NextResponse<ViduGenerateResponse>> {
   console.log(`[VIDU-POLL:${requestId}] Task result:`);
   console.log(`[VIDU-POLL:${requestId}]   - state: ${result.state}`);
   console.log(`[VIDU-POLL:${requestId}]   - has image_url: ${!!result.image_url}`);

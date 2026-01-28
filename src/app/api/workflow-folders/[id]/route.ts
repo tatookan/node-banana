@@ -34,7 +34,7 @@ export async function PUT(
       );
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) {
       return NextResponse.json(
         { success: false, error: '登录已过期' },
@@ -138,7 +138,7 @@ export async function DELETE(
       );
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) {
       return NextResponse.json(
         { success: false, error: '登录已过期' },

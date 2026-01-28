@@ -235,8 +235,13 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         error: null,
         taskId: null,
         taskState: null,
+        taskProgress: null,
         imageHistory: [],
         selectedHistoryIndex: 0,
+        offPeak: false,
+        resonanceMode: true,
+        systemPrompt: "",
+        topP: 0.95,
       };
     case "llmGenerate":
       return {

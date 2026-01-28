@@ -141,6 +141,9 @@ export async function initDatabase() {
   // Migrate user_images table for favorites
   await migrateUserImagesTable();
 
+  // Migrate users table for role field
+  await migrateUsersTable();
+
   // Create workflow_folders table
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS workflow_folders (
@@ -302,6 +305,43 @@ async function migrateUserImagesTable() {
     }
 
     console.log('[Database Migration] user_images table migration complete');
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
+      console.log('[Database Migration] Column or index already exists, skipping');
+    } else {
+      console.error('[Database Migration] Error:', error);
+    }
+  }
+}
+
+// Migration function to add role column to users table
+async function migrateUsersTable() {
+  const pool = getPool();
+
+  try {
+    // Get existing columns
+    const [columns] = await pool.execute('DESCRIBE users');
+    const existingColumns = (columns as any[]).map((row) => row.Field);
+    console.log('[Database Migration] Existing users columns:', existingColumns);
+
+    // Add role column if missing
+    if (!existingColumns.includes('role')) {
+      console.log('[Database Migration] Adding column: role to users');
+      await pool.execute(
+        'ALTER TABLE users ADD COLUMN role ENUM("user", "admin") DEFAULT "user" AFTER password_hash'
+      );
+    }
+
+    // Add idx_role index if missing
+    const [indexes] = await pool.execute('SHOW INDEX FROM users');
+    const existingIndexNames = (indexes as any[]).map((row) => row.Key_name);
+
+    if (!existingIndexNames.includes('idx_role')) {
+      console.log('[Database Migration] Adding index: idx_role');
+      await pool.execute('CREATE INDEX idx_role ON users(role)');
+    }
+
+    console.log('[Database Migration] users table migration complete');
   } catch (error: any) {
     if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
       console.log('[Database Migration] Column or index already exists, skipping');
