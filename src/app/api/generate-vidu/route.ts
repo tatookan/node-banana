@@ -10,7 +10,14 @@ const MAX_IMAGES = 7; // VIDU API limit
 
 // Get the callback URL for VIDU to notify us when task is complete
 function getCallbackUrl(): string {
-  // Use the request's origin to construct the callback URL
+  // Use Cloudflare Worker for callback forwarding (more reliable)
+  // Worker will forward the callback to the actual server
+  const workerUrl = process.env.CLOUDFLARE_WORKER_URL;
+  if (workerUrl) {
+    return `${workerUrl}/api/vidu-callback`;
+  }
+
+  // Fallback: Use the request's origin to construct the callback URL
   // In production, this should be your public-facing URL
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
   return `${baseUrl}/api/vidu-callback`;
