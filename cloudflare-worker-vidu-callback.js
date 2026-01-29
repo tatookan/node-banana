@@ -61,56 +61,148 @@ export default {
       }
     }
 
-    // ===== Google AI API 代理（原有功能）=====
+    // ===== Google AI API 代理（原有功能 - 保持不变）=====
     // 处理 CORS 预检请求
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-goog-api-key',
         },
       });
-    }
-
-    if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 });
     }
 
     try {
-      const body = await request.json();
-      const { model, ...restBody } = body;
+      const url = new URL(request.url);
 
-      // 构建目标 URL（使用环境变量中的 API Key）
-      const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GOOGLE_API_KEY}`;
+      // 判断请求类型：Gemini API 格式 vs 标准 Vertex AI REST API 格式
+      const isGeminiAPIFormat = url.pathname.includes('/publishers/google/models/');
 
-      console.log(`Proxying Google AI request to: ${model}`);
+      let targetUrl;
+
+      if (isGeminiAPIFormat) {
+        // Gemini API 格式：直接使用 aiplatform.googleapis.com
+        // 路径格式: /v1beta1/publishers/google/models/{model}:generateContent
+        targetUrl = new URL(url.pathname + url.search, `https://aiplatform.googleapis.com`);
+
+        console.log(`[Worker] ========== NEW REQUEST (Gemini API) ==========`);
+        console.log(`[Worker] Original path: ${url.pathname}`);
+        console.log(`[Worker] Using Gemini API format (no project/location prefix)`);
+        console.log(`[Worker] Target URL: ${targetUrl.href}`);
+      } else {
+        // 标准 Vertex AI REST API 格式
+        const projectId = 'xinshijue-ai';
+        const location = 'us-central1';
+        const vertexAIHost = 'us-central1-aiplatform.googleapis.com';
+
+        let modelEndpoint = url.pathname;
+
+        // 如果路径不包含 projects/locations，需要添加
+        if (!modelEndpoint.includes('/projects/') && !modelEndpoint.includes('/locations/')) {
+          const pathMatch = modelEndpoint.match(/\/v\d+(?:beta\d*)?\/(.+)/);
+          if (pathMatch) {
+            const modelPath = pathMatch[1];
+            modelEndpoint = `/v1/projects/${projectId}/locations/${location}/${modelPath}`;
+          }
+        }
+
+        targetUrl = new URL(modelEndpoint + url.search, `https://${vertexAIHost}`);
+
+        console.log(`[Worker] ========== NEW REQUEST (Vertex AI REST API) ==========`);
+        console.log(`[Worker] Original path: ${url.pathname}`);
+        console.log(`[Worker] Final endpoint: ${modelEndpoint}`);
+        console.log(`[Worker] Target URL: ${targetUrl.href}`);
+      }
+
+      // 获取请求体
+      const requestBody = await request.json();
+
+      // 深度转换 camelCase 到 snake_case（用于 Vertex AI REST API）
+      function toSnakeCase(obj) {
+        if (obj === null || typeof obj !== 'object') {
+          return obj;
+        }
+
+        if (Array.isArray(obj)) {
+          return obj.map(toSnakeCase);
+        }
+
+        const result = {};
+        for (const [key, value] of Object.entries(obj)) {
+          // Convert camelCase to snake_case
+          const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+
+          // Handle special cases for Vertex AI API
+          let finalKey = snakeKey;
+          if (key === 'config') {
+            finalKey = 'generation_config';
+          } else if (key === 'generationConfig') {
+            finalKey = 'generation_config';
+          }
+
+          result[finalKey] = toSnakeCase(value);
+        }
+        return result;
+      }
+
+      const convertedBody = toSnakeCase(requestBody);
+
+      console.log(`[Worker] Converted request:`, JSON.stringify(convertedBody, null, 2));
+
+      // 构建代理请求 headers，过滤掉可能导致冲突的 headers
+      const headers = new Headers();
+      const problematicHeaders = ['host', 'connection', 'content-length', 'transfer-encoding'];
+
+      for (const [key, value] of request.headers.entries()) {
+        const lowerKey = key.toLowerCase();
+        if (!problematicHeaders.includes(lowerKey)) {
+          headers.set(key, value);
+        }
+      }
+
+      // 添加 API key（总是使用环境变量中的 key，确保正确认证）
+      if (env.GOOGLE_API_KEY) {
+        headers.set('x-goog-api-key', env.GOOGLE_API_KEY);
+      }
 
       const proxyRequest = new Request(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(restBody),
+        method: request.method,
+        headers,
+        body: JSON.stringify(convertedBody),
       });
 
+      // 发送请求到 Vertex AI
       const response = await fetch(proxyRequest);
-      const responseData = await response.json();
 
-      return new Response(JSON.stringify(responseData), {
+      console.log(`[Worker] Response status: ${response.status}`);
+
+      // 获取响应体
+      const responseText = await response.text();
+
+      // 返回响应
+      return new Response(responseText, {
         status: response.status,
+        statusText: response.statusText,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-goog-api-key',
         },
       });
 
     } catch (error) {
+      console.error('[Worker] Error:', error);
       return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Proxy error', message: error.message }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          }
+        }
       );
     }
   },
