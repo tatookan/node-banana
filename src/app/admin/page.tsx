@@ -29,6 +29,11 @@ interface AdminStats {
     cost: number;
     lastActivity: string | null;
   }>;
+  currencyBreakdown: Array<{
+    currency: 'CNY' | 'USD';
+    cost: number;
+    originalCost: number;
+  }>;
 }
 
 type TimeRange = "week" | "month" | "all";
@@ -171,6 +176,32 @@ export default function AdminPage() {
           <div className="text-2xl font-semibold text-white">{formatCost(stats.overview.totalCost)}</div>
         </div>
       </div>
+
+      {/* Currency Breakdown */}
+      {stats.currencyBreakdown && stats.currencyBreakdown.length > 0 && (
+        <div className="bg-neutral-800 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-neutral-400 mb-3">按币种统计</h3>
+          <div className="flex gap-6">
+            {stats.currencyBreakdown.map((cb) => (
+              <div key={cb.currency} className="flex items-center gap-3">
+                <div className="text-sm text-neutral-500">
+                  {cb.currency === 'CNY' ? '人民币 (CNY)' : '美元 (USD)'}
+                </div>
+                <div className="text-lg font-semibold text-white">
+                  {cb.currency === 'CNY'
+                    ? `¥${cb.cost.toFixed(2)}`
+                    : `$${cb.originalCost.toFixed(2)}`}
+                </div>
+                {cb.currency === 'USD' && (
+                  <div className="text-xs text-neutral-500">
+                    (≈¥{cb.cost.toFixed(2)})
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Trend Charts */}
       <div className="bg-neutral-800 rounded-lg p-4">

@@ -144,6 +144,9 @@ export async function initDatabase() {
   // Migrate users table for role field
   await migrateUsersTable();
 
+  // Migrate api_usage table for multi-currency support
+  await migrateApiUsageCurrency();
+
   // Create workflow_folders table
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS workflow_folders (
@@ -342,6 +345,54 @@ async function migrateUsersTable() {
     }
 
     console.log('[Database Migration] users table migration complete');
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
+      console.log('[Database Migration] Column or index already exists, skipping');
+    } else {
+      console.error('[Database Migration] Error:', error);
+    }
+  }
+}
+
+// Migration function to add original_cost and currency fields to api_usage table
+async function migrateApiUsageCurrency() {
+  const pool = getPool();
+
+  try {
+    // Check if api_usage table exists and get its structure
+    const [rows] = await pool.execute('SHOW TABLES LIKE "api_usage"');
+
+    if ((rows as any[]).length === 0) {
+      return; // Table doesn't exist yet
+    }
+
+    // Get existing columns
+    const [columns] = await pool.execute('DESCRIBE api_usage');
+    const existingColumns = (columns as any[]).map((row) => row.Field);
+    console.log('[Database Migration] Existing api_usage columns:', existingColumns);
+
+    // Add original_cost column if missing
+    if (!existingColumns.includes('original_cost')) {
+      console.log('[Database Migration] Adding column: original_cost to api_usage');
+      await pool.execute('ALTER TABLE api_usage ADD COLUMN original_cost DECIMAL(10, 4) DEFAULT NULL AFTER cost');
+    }
+
+    // Add currency column if missing
+    if (!existingColumns.includes('currency')) {
+      console.log('[Database Migration] Adding column: currency to api_usage');
+      await pool.execute('ALTER TABLE api_usage ADD COLUMN currency VARCHAR(10) DEFAULT NULL AFTER original_cost');
+    }
+
+    // Add idx_currency index if missing
+    const [indexes] = await pool.execute('SHOW INDEX FROM api_usage');
+    const existingIndexNames = (indexes as any[]).map((row) => row.Key_name);
+
+    if (!existingIndexNames.includes('idx_currency')) {
+      console.log('[Database Migration] Adding index: idx_currency');
+      await pool.execute('ALTER TABLE api_usage ADD INDEX idx_currency (currency)');
+    }
+
+    console.log('[Database Migration] api_usage currency migration complete');
   } catch (error: any) {
     if (error.code === 'ER_DUP_FIELDNAME' || error.code === 'ER_DUP_KEYNAME') {
       console.log('[Database Migration] Column or index already exists, skipping');

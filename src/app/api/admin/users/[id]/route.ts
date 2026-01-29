@@ -37,6 +37,11 @@ interface UserDetailResponse {
       tokens: number;
       cost: number;
     }>;
+    currencyBreakdown: Array<{
+      currency: 'CNY' | 'USD';
+      cost: number;
+      originalCost: number;
+    }>;
   };
 }
 
@@ -145,6 +150,18 @@ export async function GET(
       [userId]
     );
 
+    // Currency breakdown for this user
+    const currencyBreakdownResult = await query<any>(
+      `SELECT
+        currency,
+        SUM(cost) as cost,
+        SUM(COALESCE(original_cost, cost)) as originalCost
+      FROM api_usage
+      WHERE user_id = ?
+      GROUP BY currency`,
+      [userId]
+    );
+
     return NextResponse.json<UserDetailResponse>({
       success: true,
       user: {
@@ -171,6 +188,11 @@ export async function GET(
           model: r.model,
           tokens: r.tokens,
           cost: parseFloat(r.cost),
+        })),
+        currencyBreakdown: currencyBreakdownResult.map((r: any) => ({
+          currency: r.currency || 'CNY',
+          cost: parseFloat(r.cost),
+          originalCost: parseFloat(r.originalCost),
         })),
       },
     });

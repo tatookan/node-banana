@@ -226,6 +226,24 @@ export async function GET(request: NextRequest) {
       cost: parseFloat(r.cost),
     }));
 
+    // Get currency breakdown (按货币分组统计)
+    const currencyBreakdownResult = await query<any>(
+      `SELECT
+        currency,
+        SUM(cost) as cost,
+        SUM(COALESCE(original_cost, cost)) as originalCost
+      FROM api_usage
+      WHERE user_id = ?
+      GROUP BY currency`,
+      [userId]
+    );
+
+    const currencyBreakdown = currencyBreakdownResult.map((r: any) => ({
+      currency: r.currency || 'CNY',
+      cost: parseFloat(r.cost),
+      originalCost: parseFloat(r.originalCost),
+    }));
+
     const stats: StatsData = {
       today,
       week,
@@ -236,6 +254,7 @@ export async function GET(request: NextRequest) {
         images: imageBreakdown,
         llm: llmBreakdown,
       },
+      currencyBreakdown,
     };
 
     return NextResponse.json<StatsResponse>({

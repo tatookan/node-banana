@@ -34,6 +34,11 @@ interface UserDetail {
     tokens: number;
     cost: number;
   }>;
+  currencyBreakdown: Array<{
+    currency: 'CNY' | 'USD';
+    cost: number;
+    originalCost: number;
+  }>;
 }
 
 export default function UserDetailPage() {
@@ -164,6 +169,32 @@ export default function UserDetailPage() {
           <div className="text-2xl font-semibold text-white">{formatCost(userDetail.totals.cost)}</div>
         </div>
       </div>
+
+      {/* Currency Breakdown */}
+      {userDetail.currencyBreakdown && userDetail.currencyBreakdown.length > 0 && (
+        <div className="bg-neutral-800 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-neutral-400 mb-3">按币种统计</h3>
+          <div className="flex gap-6">
+            {userDetail.currencyBreakdown.map((cb) => (
+              <div key={cb.currency} className="flex items-center gap-3">
+                <div className="text-sm text-neutral-500">
+                  {cb.currency === 'CNY' ? '人民币 (CNY)' : '美元 (USD)'}
+                </div>
+                <div className="text-lg font-semibold text-white">
+                  {cb.currency === 'CNY'
+                    ? `¥${cb.cost.toFixed(2)}`
+                    : `$${cb.originalCost.toFixed(2)}`}
+                </div>
+                {cb.currency === 'USD' && (
+                  <div className="text-xs text-neutral-500">
+                    (≈¥{cb.cost.toFixed(2)})
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Trend Chart */}
       <div className="bg-neutral-800 rounded-lg p-4">

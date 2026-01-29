@@ -24,9 +24,11 @@ export async function recordImageGeneration(
         images_generated,
         image_model,
         image_resolution,
-        cost
-      ) VALUES (?, ?, ?, ?, ?)`,
-      [userId, count, model, resolution, cost]
+        cost,
+        original_cost,
+        currency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, count, model, resolution, cost, cost, 'CNY']
     );
 
     console.log('[UsageTracker] Recorded image generation:', {
@@ -35,6 +37,8 @@ export async function recordImageGeneration(
       resolution,
       count,
       cost,
+      originalCost: cost,
+      currency: 'CNY',
     });
   } catch (error) {
     console.error('[UsageTracker] Failed to record image generation:', error);
@@ -61,23 +65,25 @@ export async function recordLLMUsage(
     // 汇率: 1 USD = 7 RMB (与图像生成价格换算保持一致)
     const USD_TO_RMB = 7;
 
-    // Approximate cost calculation if not provided
+    // Approximate cost calculation if not provided (美元)
     // Google: ~$0.075 per 1M tokens (flash), ~$1.25 per 1M tokens (pro)
     // OpenAI: ~$0.15 per 1M tokens (gpt-4.1-mini), ~$0.15 per 1M tokens (gpt-4.1-nano)
-    // 价格为美元，需要转换为人民币
-    const calculatedCost =
+    const originalCostUSD =
       cost ??
       (() => {
         if (provider === 'google') {
-          if (model.startsWith('gemini-2.5')) return (tokens / 1_000_000) * 0.075 * USD_TO_RMB;
-          if (model.startsWith('gemini-3-flash')) return (tokens / 1_000_000) * 0.075 * USD_TO_RMB;
-          if (model.startsWith('gemini-3-pro')) return (tokens / 1_000_000) * 1.25 * USD_TO_RMB;
+          if (model.startsWith('gemini-2.5')) return (tokens / 1_000_000) * 0.075;
+          if (model.startsWith('gemini-3-flash')) return (tokens / 1_000_000) * 0.075;
+          if (model.startsWith('gemini-3-pro')) return (tokens / 1_000_000) * 1.25;
         } else if (provider === 'openai') {
-          if (model.startsWith('gpt-4.1-mini')) return (tokens / 1_000_000) * 0.15 * USD_TO_RMB;
-          if (model.startsWith('gpt-4.1-nano')) return (tokens / 1_000_000) * 0.15 * USD_TO_RMB;
+          if (model.startsWith('gpt-4.1-mini')) return (tokens / 1_000_000) * 0.15;
+          if (model.startsWith('gpt-4.1-nano')) return (tokens / 1_000_000) * 0.15;
         }
         return 0;
       })();
+
+    // 转换为人民币用于统一统计
+    const costRMB = originalCostUSD * USD_TO_RMB;
 
     await execute(
       `INSERT INTO api_usage (
@@ -85,9 +91,11 @@ export async function recordLLMUsage(
         tokens_used,
         llm_provider,
         llm_model,
-        cost
-      ) VALUES (?, ?, ?, ?, ?)`,
-      [userId, tokens, provider, model, calculatedCost]
+        cost,
+        original_cost,
+        currency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, tokens, provider, model, costRMB, originalCostUSD, 'USD']
     );
 
     console.log('[UsageTracker] Recorded LLM usage:', {
@@ -95,7 +103,9 @@ export async function recordLLMUsage(
       provider,
       model,
       tokens,
-      cost: calculatedCost,
+      cost: costRMB,
+      originalCost: originalCostUSD,
+      currency: 'USD',
     });
   } catch (error) {
     console.error('[UsageTracker] Failed to record LLM usage:', error);

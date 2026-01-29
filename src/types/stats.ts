@@ -54,6 +54,13 @@ export interface LLMStatsBreakdown {
   cost: number;
 }
 
+// Currency breakdown
+export interface CurrencyBreakdown {
+  currency: 'CNY' | 'USD';
+  cost: number;
+  originalCost: number; // 原币种金额
+}
+
 // Complete statistics data
 export interface StatsData {
   today: TimeStats;
@@ -69,6 +76,7 @@ export interface StatsData {
     images: ImageStatsBreakdown[];
     llm: LLMStatsBreakdown[];
   };
+  currencyBreakdown: CurrencyBreakdown[]; // 按货币分组统计
 }
 
 // Stats API request with optional date range

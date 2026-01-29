@@ -4,6 +4,12 @@ import { query } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
+interface CurrencyBreakdown {
+  currency: 'CNY' | 'USD';
+  cost: number;
+  originalCost: number;
+}
+
 interface AdminStatsResponse {
   success: boolean;
   error?: string;
@@ -31,6 +37,7 @@ interface AdminStatsResponse {
       cost: number;
       lastActivity: string | null;
     }>;
+    currencyBreakdown: CurrencyBreakdown[];
   };
 }
 
@@ -147,6 +154,22 @@ export async function GET(request: NextRequest) {
       lastActivity: r.lastActivity ? r.lastActivity.toISOString() : null,
     }));
 
+    // Currency breakdown (按货币分组统计)
+    const currencyBreakdownResult = await query<any>(
+      `SELECT
+        currency,
+        SUM(cost) as cost,
+        SUM(COALESCE(original_cost, cost)) as originalCost
+      FROM api_usage
+      GROUP BY currency`
+    );
+
+    const currencyBreakdown = currencyBreakdownResult.map((r: any) => ({
+      currency: r.currency || 'CNY',
+      cost: parseFloat(r.cost),
+      originalCost: parseFloat(r.originalCost),
+    }));
+
     return NextResponse.json<AdminStatsResponse>({
       success: true,
       stats: {
@@ -159,6 +182,7 @@ export async function GET(request: NextRequest) {
         },
         trend: filledTrend,
         users,
+        currencyBreakdown,
       },
     });
   } catch (error) {
