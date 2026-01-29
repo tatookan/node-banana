@@ -203,6 +203,32 @@ export function StatsModal({ isOpen, onClose }: Props) {
               </div>
             </div>
 
+            {/* Currency breakdown */}
+            {stats.currencyBreakdown && stats.currencyBreakdown.length > 0 && (
+              <div className="bg-neutral-800 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-neutral-400 mb-3">按币种统计</h3>
+                <div className="flex gap-6">
+                  {stats.currencyBreakdown.map((cb) => (
+                    <div key={cb.currency} className="flex items-center gap-3">
+                      <div className="text-sm text-neutral-500">
+                        {cb.currency === 'CNY' ? '人民币 (CNY)' : '美元 (USD)'}
+                      </div>
+                      <div className="text-lg font-semibold text-white">
+                        {cb.currency === 'CNY'
+                          ? `¥${cb.cost.toFixed(2)}`
+                          : `$${cb.originalCost.toFixed(2)}`}
+                      </div>
+                      {cb.currency === 'USD' && (
+                        <div className="text-xs text-neutral-500">
+                          (≈¥{cb.cost.toFixed(2)})
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Image breakdown */}
             {stats.breakdown.images.length > 0 && (
               <div className="bg-neutral-800 rounded-lg p-4">
@@ -293,6 +319,34 @@ export function StatsModal({ isOpen, onClose }: Props) {
               </div>
 
               <div className="space-y-4">
+                {/* Cost chart */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-neutral-500">每日成本</span>
+                  </div>
+                  <div className="flex items-end gap-1 h-24">
+                    {getCurrentData().map((day) => {
+                      const maxCost = Math.max(...getCurrentData().map((d) => d.cost), 0.01);
+                      const height = maxCost > 0 ? (day.cost / maxCost) * 100 : 0;
+                      return (
+                        <div
+                          key={day.date}
+                          className="flex-1 flex flex-col items-center gap-1 group"
+                        >
+                          <div
+                            className="w-full bg-blue-600 rounded-sm transition-all hover:bg-blue-500"
+                            style={{ height: `${Math.max(height, 4)}%` }}
+                            title={`${formatDate(day.date)}: ${formatCost(day.cost)}`}
+                          />
+                          <span className="text-[10px] text-neutral-600">
+                            {formatDate(day.date)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Images chart */}
                 <div>
                   <div className="flex items-center justify-between mb-2">

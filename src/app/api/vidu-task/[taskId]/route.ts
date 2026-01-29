@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ViduGenerateResponse, ViduTaskResult } from "@/types";
+import { getUserIdFromToken, recordViduGeneration } from "@/lib/usageTracker";
 
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,15 @@ export async function GET(
   console.log(`\n[VIDU-POLL:${requestId}] ========== CHECK TASK RESULT ==========`);
   console.log(`[VIDU-POLL:${requestId}] Task ID: ${taskId}`);
 
+  // Get user ID for usage tracking
+  const token = request.cookies.get('auth_token')?.value;
+  const userId = await getUserIdFromToken(token);
+  if (!userId) {
+    console.warn(`[VIDU-POLL:${requestId}] ⚠️ No valid user token found`);
+  } else {
+    console.log(`[VIDU-POLL:${requestId}] User ID: ${userId}`);
+  }
+
   try {
     // First, check if we have a cached result from callback
     const callbackModule = await import('@/app/api/vidu-callback/route');
@@ -21,6 +31,24 @@ export async function GET(
 
     if (cachedResult) {
       console.log(`[VIDU-POLL:${requestId}] ✓ Found cached result`);
+
+      // Record usage if not already recorded (check if userId exists in callback)
+      if (cachedResult.state === "success" && userId) {
+        const hasImages = (cachedResult.images || []).length > 0;
+        try {
+          await recordViduGeneration(
+            userId,
+            cachedResult.model as any,
+            (cachedResult.resolution || "1080p") as any,
+            hasImages,
+            1
+          );
+          console.log(`[VIDU-POLL:${requestId}] ✓ Usage recorded for user ${userId}`);
+        } catch (recordError) {
+          console.error(`[VIDU-POLL:${requestId}] Failed to record usage:`, recordError);
+        }
+      }
+
       return handleTaskResult(cachedResult, requestId);
     }
 
@@ -90,6 +118,23 @@ export async function GET(
           const dataUrl = `data:image/png;base64,${imageBase64}`;
 
           console.log(`[VIDU-POLL:${requestId}] Image fetched: ${(dataUrl.length / 1024).toFixed(2)}KB`);
+
+          // Record usage for development mode (polling)
+          if (userId) {
+            const hasImages = (viduResponse.images || []).length > 0;
+            try {
+              await recordViduGeneration(
+                userId,
+                viduResponse.model as any,
+                (viduResponse.resolution || "1080p") as any,
+                hasImages,
+                1
+              );
+              console.log(`[VIDU-POLL:${requestId}] ✓ Usage recorded for user ${userId}`);
+            } catch (recordError) {
+              console.error(`[VIDU-POLL:${requestId}] Failed to record usage:`, recordError);
+            }
+          }
 
           // Cache the result
           callbackModule.storeTaskResult(taskId, viduResponse);
