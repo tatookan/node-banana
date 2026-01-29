@@ -17,17 +17,26 @@ const publicRoutes = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 详细日志 - 记录所有请求
+  console.log('[Middleware] ========== REQUEST ==========');
+  console.log('[Middleware] Path:', pathname);
+  console.log('[Middleware] Method:', request.method);
+  console.log('[Middleware] User-Agent:', request.headers.get('user-agent'));
+  console.log('[Middleware] Origin:', request.headers.get('origin'));
+  console.log('[Middleware] Referer:', request.headers.get('referer'));
+
   // Check if this is a public route
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
   if (isPublicRoute) {
+    console.log('[Middleware] ✓ Public route, allowing request');
     return NextResponse.next();
   }
 
   // Get token from cookie
   const token = request.cookies.get('auth_token')?.value;
 
-  console.log('[Middleware] Path:', pathname, 'Token:', token ? 'exists' : 'none');
+  console.log('[Middleware] Token:', token ? 'exists' : 'none');
 
   if (!token) {
     console.log('[Middleware] No token, redirecting to login');
