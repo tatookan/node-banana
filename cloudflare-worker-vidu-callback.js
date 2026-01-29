@@ -9,19 +9,34 @@ export default {
     // ===== 健康检查端点 =====
     if (path === '/health') {
       console.log('Health check requested');
+      console.log('Environment VIDU_SERVER_URL:', env.VIDU_SERVER_URL);
       try {
         const serverUrl = env.VIDU_SERVER_URL || 'http://101.126.147.111:3012';
-        const healthCheck = await fetch(`${serverUrl}/api/health`);
+        const healthUrl = `${serverUrl}/api/health`;
+        console.log('Fetching health from:', healthUrl);
+        const healthCheck = await fetch(healthUrl);
+        console.log('Health check response status:', healthCheck.status);
         return new Response(JSON.stringify({
           status: 'ok',
-          server: healthCheck.ok ? 'reachable' : 'unreachable'
+          server: healthCheck.ok ? 'reachable' : 'unreachable',
+          debug: {
+            serverUrl: serverUrl,
+            healthUrl: healthUrl,
+            responseStatus: healthCheck.status,
+            responseOk: healthCheck.ok
+          }
         }), {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (error) {
+        console.error('Health check error:', error);
         return new Response(JSON.stringify({
           status: 'error',
-          error: error.message
+          error: error.message,
+          debug: {
+            errorMessage: error.message,
+            errorStack: error.stack
+          }
         }), {
           status: 503,
           headers: { 'Content-Type': 'application/json' }
@@ -32,6 +47,7 @@ export default {
     // ===== VIDU 回调转发 =====
     if (path.startsWith('/api/vidu-callback')) {
       console.log('Forwarding VIDU callback to server');
+      console.log('Environment VIDU_SERVER_URL:', env.VIDU_SERVER_URL);
 
       // 使用环境变量配置服务器地址
       const serverUrl = env.VIDU_SERVER_URL || 'http://101.126.147.111:3012';
