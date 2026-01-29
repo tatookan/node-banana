@@ -4,6 +4,15 @@ import { ModelType, Resolution, NanoBananaNodeData, SplitGridNodeData, WorkflowN
 // 1 credit = 0.03125 RMB
 const VIDU_CREDIT_PRICE_RMB = 0.03125;
 
+// Map VIDU API model names to internal types
+export function mapViduModelToInternal(apiModelName: string): ViduModelType {
+  // VIDU API returns names like "Vidu3.1-参考生图-20251126" or "Vidu3.1-文生图+参考生图-20251126"
+  if (apiModelName.includes("参考生图") && !apiModelName.includes("文生图")) {
+    return "viduq1";  // Reference image only
+  }
+  return "viduq2";  // Text-to-image + reference image
+}
+
 const VIDU_PRICING = {
   "viduq2": {
     // Text-to-image (no reference images)
@@ -19,14 +28,23 @@ const VIDU_PRICING = {
   },
 } as const;
 
-export function calculateViduCost(model: ViduModelType, resolution: ViduResolution, hasImages: boolean): number {
-  if (model === "viduq1") {
-    const credits = VIDU_PRICING[model][resolution];
+export function calculateViduCost(
+  model: ViduModelType | string,
+  resolution: ViduResolution,
+  hasImages: boolean
+): number {
+  // Convert API model name to internal type if needed
+  const internalModel: ViduModelType = typeof model === "string" && !["viduq1", "viduq2"].includes(model)
+    ? mapViduModelToInternal(model)
+    : model as ViduModelType;
+
+  if (internalModel === "viduq1") {
+    const credits = VIDU_PRICING[internalModel][resolution];
     return credits * VIDU_CREDIT_PRICE_RMB;
   }
 
   // viduq2
-  const pricing = VIDU_PRICING[model][resolution];
+  const pricing = VIDU_PRICING[internalModel][resolution];
   const credits = hasImages ? pricing.imageToImage : pricing.textToImage;
   return credits * VIDU_CREDIT_PRICE_RMB;
 }
