@@ -19,7 +19,7 @@ const VIDU_PRICING = {
   },
 } as const;
 
-function calculateViduCost(model: ViduModelType, resolution: ViduResolution, hasImages: boolean): number {
+export function calculateViduCost(model: ViduModelType, resolution: ViduResolution, hasImages: boolean): number {
   if (model === "viduq1") {
     const credits = VIDU_PRICING[model][resolution];
     return credits * VIDU_CREDIT_PRICE_RMB;

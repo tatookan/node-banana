@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ViduGenerateRequest, ViduGenerateResponse, ViduTaskResponse } from "@/types";
+import { getUserIdFromToken } from "@/lib/usageTracker";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,18 @@ export async function POST(request: NextRequest) {
   console.log(`[VIDU:${requestId}] Timestamp: ${new Date().toISOString()}`);
 
   try {
+    // Get user ID for usage tracking
+    const token = request.cookies.get('auth_token')?.value;
+    const userId = await getUserIdFromToken(token);
+    if (!userId) {
+      console.error(`[VIDU:${requestId}] ❌ Unauthorized: no valid user token`);
+      return NextResponse.json<ViduGenerateResponse>(
+        { success: false, error: "未授权，请先登录" },
+        { status: 401 }
+      );
+    }
+    console.log(`[VIDU:${requestId}] User ID: ${userId}`);
+
     // Check API key
     const apiKey = process.env.VIDU_API_KEY;
     if (!apiKey) {
@@ -191,6 +204,16 @@ export async function POST(request: NextRequest) {
     console.log(`[VIDU:${requestId}]   - task_id: ${viduResponse.task_id}`);
     console.log(`[VIDU:${requestId}]   - state: ${viduResponse.state}`);
     console.log(`[VIDU:${requestId}]   - credits: ${viduResponse.credits}`);
+
+    // Store userId for later usage tracking in callback
+    try {
+      const { storeTaskInfo } = await import('../vidu-callback/route');
+      storeTaskInfo(viduResponse.task_id, userId);
+      console.log(`[VIDU:${requestId}] ✓ UserId stored for task`);
+    } catch (storeError) {
+      console.error(`[VIDU:${requestId}] Failed to store userId:`, storeError);
+      // Don't fail the request for this
+    }
 
     console.log(`[VIDU:${requestId}] ✓✓✓ SUCCESS - Task created ✓✓✓`);
 

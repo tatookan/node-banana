@@ -1,9 +1,22 @@
 import { query, execute } from '@/lib/db';
-import { calculateGenerationCost } from '@/utils/costCalculator';
-import type { ModelType, Resolution, LLMProvider, LLMModelType } from '@/types';
+import { calculateGenerationCost, calculateViduCost } from '@/utils/costCalculator';
+import type { ModelType, Resolution, LLMProvider, LLMModelType, ViduModelType, ViduResolution } from '@/types';
+
+// Exchange rate: 1 USD = 7 RMB
+const USD_TO_RMB = 7;
 
 /**
- * Record image generation usage
+ * Get original USD cost for Gemini image generation (nano-banana)
+ * The calculateGenerationCost returns RMB, so we convert back to USD
+ */
+function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution): number {
+  const costRMB = calculateGenerationCost(model, resolution);
+  return costRMB / USD_TO_RMB;
+}
+
+/**
+ * Record Gemini image generation usage (nano-banana, nano-banana-pro)
+ * These are USD-based services
  * @param userId User ID
  * @param model Model type (nano-banana or nano-banana-pro)
  * @param resolution Image resolution (1K, 2K, 4K)
@@ -16,7 +29,10 @@ export async function recordImageGeneration(
   count: number = 1
 ): Promise<void> {
   try {
-    const cost = calculateGenerationCost(model, resolution) * count;
+    // Get cost in RMB (from price table)
+    const costRMB = calculateGenerationCost(model, resolution) * count;
+    // Convert to original USD
+    const originalCostUSD = (costRMB / USD_TO_RMB);
 
     await execute(
       `INSERT INTO api_usage (
@@ -28,17 +44,17 @@ export async function recordImageGeneration(
         original_cost,
         currency
       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [userId, count, model, resolution, cost, cost, 'CNY']
+      [userId, count, model, resolution, costRMB, originalCostUSD, 'USD']
     );
 
-    console.log('[UsageTracker] Recorded image generation:', {
+    console.log('[UsageTracker] Recorded Gemini image generation:', {
       userId,
       model,
       resolution,
       count,
-      cost,
-      originalCost: cost,
-      currency: 'CNY',
+      cost: costRMB,
+      originalCost: originalCostUSD,
+      currency: 'USD',
     });
   } catch (error) {
     console.error('[UsageTracker] Failed to record image generation:', error);
@@ -47,7 +63,58 @@ export async function recordImageGeneration(
 }
 
 /**
+ * Record VIDU image generation usage
+ * VIDU is CNY-based (1 credit = 0.03125 RMB)
+ * @param userId User ID
+ * @param model VIDU model type (viduq1 or viduq2)
+ * @param resolution Image resolution (1080p, 2K, 4K)
+ * @param hasImages Whether input images were provided (affects pricing)
+ * @param count Number of images generated (default: 1)
+ */
+export async function recordViduGeneration(
+  userId: number,
+  model: ViduModelType,
+  resolution: ViduResolution,
+  hasImages: boolean,
+  count: number = 1
+): Promise<void> {
+  try {
+    const costRMB = calculateViduCost(model, resolution, hasImages) * count;
+    // VIDU is originally in RMB, so original_cost = cost
+    const originalCost = costRMB;
+
+    await execute(
+      `INSERT INTO api_usage (
+        user_id,
+        images_generated,
+        image_model,
+        image_resolution,
+        cost,
+        original_cost,
+        currency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, count, model, resolution, costRMB, originalCost, 'CNY']
+    );
+
+    console.log('[UsageTracker] Recorded VIDU generation:', {
+      userId,
+      model,
+      resolution,
+      hasImages,
+      count,
+      cost: costRMB,
+      originalCost: originalCost,
+      currency: 'CNY',
+    });
+  } catch (error) {
+    console.error('[UsageTracker] Failed to record VIDU generation:', error);
+    // Don't throw - usage tracking failure should not break the main flow
+  }
+}
+
+/**
  * Record LLM token usage
+ * LLM services (Gemini, OpenAI) are USD-based
  * @param userId User ID
  * @param provider LLM provider (google or openai)
  * @param model LLM model name
@@ -62,9 +129,6 @@ export async function recordLLMUsage(
   cost?: number
 ): Promise<void> {
   try {
-    // 汇率: 1 USD = 7 RMB (与图像生成价格换算保持一致)
-    const USD_TO_RMB = 7;
-
     // Approximate cost calculation if not provided (美元)
     // Google: ~$0.075 per 1M tokens (flash), ~$1.25 per 1M tokens (pro)
     // OpenAI: ~$0.15 per 1M tokens (gpt-4.1-mini), ~$0.15 per 1M tokens (gpt-4.1-nano)

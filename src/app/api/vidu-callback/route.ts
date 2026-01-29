@@ -4,13 +4,22 @@ import { ViduTaskResult } from "@/types";
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
+// Extended task result with userId for usage tracking
+interface ExtendedTaskResult extends ViduTaskResult {
+  userId?: number;
+}
+
 // In-memory store for task results
 // In production, this should be replaced with Redis or a database
-const taskResults = new Map<string, ViduTaskResult>();
+const taskResults = new Map<string, ExtendedTaskResult>();
 
 // Store a task result
-export function storeTaskResult(taskId: string, result: ViduTaskResult): void {
-  taskResults.set(taskId, result);
+export function storeTaskResult(taskId: string, result: ViduTaskResult, userId?: number): void {
+  const extended: ExtendedTaskResult = {
+    ...result,
+    userId,
+  };
+  taskResults.set(taskId, extended);
 
   // Clean up old results after 1 hour
   setTimeout(() => {
@@ -21,6 +30,27 @@ export function storeTaskResult(taskId: string, result: ViduTaskResult): void {
 // Get a task result
 export function getTaskResult(taskId: string): ViduTaskResult | null {
   return taskResults.get(taskId) || null;
+}
+
+// Store task info when creating the task (for later usage recording)
+export function storeTaskInfo(taskId: string, userId: number): void {
+  const existing = taskResults.get(taskId);
+  if (existing) {
+    existing.userId = userId;
+  } else {
+    // Create a minimal task result that will be filled in later by callback
+    taskResults.set(taskId, {
+      task_id: taskId,
+      state: 'created',
+      model: 'viduq2',
+      prompt: '',
+      images: [],
+      seed: 0,
+      credits: 0,
+      created_at: new Date().toISOString(),
+      userId,
+    } as ExtendedTaskResult);
+  }
 }
 
 // Handle VIDU callback
@@ -53,7 +83,7 @@ export async function POST(request: NextRequest) {
       images: body.images || [],
       seed: body.seed || 0,
       aspect_ratio: body.aspect_ratio,
-      resolution: body.resolution,
+      resolution: body.resolution || "1080p",
       callback_url: body.callback_url,
       payload: body.payload || "",
       credits: body.credits || 0,
@@ -66,8 +96,33 @@ export async function POST(request: NextRequest) {
     console.log(`[VIDU-CALLBACK:${requestId}] Converted result - has image_url: ${!!taskResult.image_url}`);
     console.log(`[VIDU-CALLBACK:${requestId}] Converted result - has error: ${!!taskResult.error}`);
 
-    // Store the task result
-    storeTaskResult(taskId, taskResult);
+    // Get the stored task info to retrieve userId
+    const storedTask = taskResults.get(taskId);
+    const userId = storedTask?.userId;
+
+    // Record usage if task succeeded and we have userId
+    if (body.state === "success" && userId) {
+      try {
+        const { recordViduGeneration } = await import('@/lib/usageTracker');
+        const hasImages = (taskResult.images || []).length > 0;
+        await recordViduGeneration(
+          userId,
+          taskResult.model as any,
+          taskResult.resolution as any,
+          hasImages,
+          1
+        );
+        console.log(`[VIDU-CALLBACK:${requestId}] ✓ Usage recorded for user ${userId}`);
+      } catch (recordError) {
+        console.error(`[VIDU-CALLBACK:${requestId}] Failed to record usage:`, recordError);
+        // Don't fail the callback for usage recording errors
+      }
+    } else if (body.state === "success" && !userId) {
+      console.warn(`[VIDU-CALLBACK:${requestId}] ⚠️ Task succeeded but no userId found`);
+    }
+
+    // Store the task result (with userId if available)
+    storeTaskResult(taskId, taskResult, userId);
 
     console.log(`[VIDU-CALLBACK:${requestId}] ✓ Task result stored`);
 
