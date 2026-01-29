@@ -12,7 +12,8 @@ import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 
 // Resolutions only for AI分镜画板 Pro (gemini-3-pro-image-preview)
-const RESOLUTIONS: Resolution[] = ["1K", "2K", "4K"];
+// 4K temporarily disabled
+const RESOLUTIONS: Resolution[] = ["1K", "2K"]; // ["1K", "2K", "4K"];
 
 const MODELS: { value: ModelType; label: string }[] = [
   { value: "nano-banana", label: "nano-banana-Flash（pro 1/4价格，速度快）" },
