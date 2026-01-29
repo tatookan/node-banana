@@ -9,6 +9,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Build arguments (from .env file)
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
         GOOGLE_CLOUD_API_KEY: ${GOOGLE_CLOUD_API_KEY}
         CLOUDFLARE_WORKER_URL: ${CLOUDFLARE_WORKER_URL}
         R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
@@ -41,6 +42,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
 
       # Google Cloud
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       GOOGLE_CLOUD_API_KEY: ${GOOGLE_CLOUD_API_KEY}
 
       # Cloudflare
