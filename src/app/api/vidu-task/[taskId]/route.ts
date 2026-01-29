@@ -54,12 +54,18 @@ export async function GET(
 
     // If no cached result and in production, callback will handle it
     const isProduction = process.env.NODE_ENV === 'production';
-    if (isProduction) {
+    const forcePolling = process.env.FORCE_VIDU_POLLING === 'true';
+
+    if (isProduction && !forcePolling) {
       console.log(`[VIDU-POLL:${requestId}] ⏳ Waiting for callback (production mode)`);
       return NextResponse.json<ViduGenerateResponse>({
         success: false,
         error: `Task still processing`,
       });
+    }
+
+    if (forcePolling) {
+      console.log(`[VIDU-POLL:${requestId}] 🔍 Force polling mode enabled (production + polling)`);
     }
 
     // In development, poll VIDU API directly
