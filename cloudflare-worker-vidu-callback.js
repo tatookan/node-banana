@@ -14,8 +14,18 @@ export default {
         const serverUrl = env.VIDU_SERVER_URL || 'http://101.126.147.111:3012';
         const healthUrl = `${serverUrl}/api/health`;
         console.log('Fetching health from:', healthUrl);
-        const healthCheck = await fetch(healthUrl);
+
+        // 添加必要的请求头，避免 403 错误
+        const healthCheck = await fetch(healthUrl, {
+          headers: {
+            'User-Agent': 'Cloudflare-Worker-HealthCheck/1.0',
+            'Accept': 'application/json',
+          }
+        });
+
         console.log('Health check response status:', healthCheck.status);
+        console.log('Health check response ok:', healthCheck.ok);
+
         return new Response(JSON.stringify({
           status: 'ok',
           server: healthCheck.ok ? 'reachable' : 'unreachable',
@@ -237,10 +247,18 @@ async function fetchWithRetry(originalRequest, targetUrl, maxRetries = 3) {
 
   for (let i = 0; i < maxRetries; i++) {
     try {
+      // 复制原始 headers 并添加 User-Agent
+      const headers = new Headers();
+      for (const [key, value] of originalRequest.headers.entries()) {
+        headers.set(key, value);
+      }
+      // 添加 User-Agent 避免被服务器拒绝
+      headers.set('User-Agent', 'Cloudflare-Worker-Callback/1.0');
+
       // 构建新的请求对象
       const proxyRequest = new Request(targetUrl, {
         method: originalRequest.method,
-        headers: originalRequest.headers,
+        headers: headers,
         body: requestBody,  // 使用存储的 body
       });
 
