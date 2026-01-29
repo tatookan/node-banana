@@ -10,6 +10,8 @@ const publicRoutes = [
   '/api/auth/verify',
   '/api/auth/me',
   '/api/r2/test', // R2 connection test endpoint (for debugging)
+  '/api/vidu-callback', // VIDU API callback endpoint (called by Cloudflare Worker)
+  '/api/health', // Health check endpoint (for Cloudflare Worker monitoring)
 ];
 
 export function middleware(request: NextRequest) {
