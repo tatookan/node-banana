@@ -210,13 +210,22 @@ export default {
 
 // ===== 重试逻辑 =====
 async function fetchWithRetry(originalRequest, targetUrl, maxRetries = 3) {
+  // 读取并存储 body（因为 ReadableStream 只能读取一次）
+  let requestBody = null;
+  try {
+    requestBody = await originalRequest.text();
+  } catch (e) {
+    // 如果无法读取 body（比如 GET 请求），使用 null
+    requestBody = null;
+  }
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       // 构建新的请求对象
       const proxyRequest = new Request(targetUrl, {
         method: originalRequest.method,
         headers: originalRequest.headers,
-        body: originalRequest.body,
+        body: requestBody,  // 使用存储的 body
       });
 
       const response = await fetch(proxyRequest);
