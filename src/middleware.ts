@@ -12,6 +12,7 @@ const publicRoutes = [
   '/api/r2/test', // R2 connection test endpoint (for debugging)
   '/api/vidu-callback', // VIDU API callback endpoint (called by Cloudflare Worker)
   '/api/health', // Health check endpoint (for Cloudflare Worker monitoring)
+  '/worker-health', // Worker 专用健康检查端点（不在 /api/ 路径下）
 ];
 
 export function middleware(request: NextRequest) {

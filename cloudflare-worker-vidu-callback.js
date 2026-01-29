@@ -12,7 +12,8 @@ export default {
       console.log('Environment VIDU_SERVER_URL:', env.VIDU_SERVER_URL);
       try {
         const serverUrl = env.VIDU_SERVER_URL || 'http://101.126.147.111:3012';
-        const healthUrl = `${serverUrl}/api/health`;
+        // 使用 /worker-health 端点而不是 /api/health，避免 nginx 代理拦截
+        const healthUrl = `${serverUrl}/worker-health`;
         console.log('Fetching health from:', healthUrl);
 
         // 添加必要的请求头，避免 403 错误
