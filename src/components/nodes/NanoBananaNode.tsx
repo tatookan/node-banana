@@ -4,20 +4,24 @@ import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { Handle, Position, NodeProps, Node, useReactFlow } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore, saveNanoBananaDefaults } from "@/store/workflowStore";
-import { NanoBananaNodeData, AspectRatio, Resolution, ModelType, ImageInputNodeData, AnnotationNodeData } from "@/types";
+import { NanoBananaNodeData, AspectRatio, Resolution, ModelType, ImageProvider, ImageInputNodeData, AnnotationNodeData } from "@/types";
 import { cacheManager } from "@/lib/cacheManager";
 import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
 
 // All 10 aspect ratios supported by both models
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 
-// Resolutions only for AI分镜画板 Pro (gemini-3-pro-image-preview)
-// 4K temporarily disabled
-const RESOLUTIONS: Resolution[] = ["1K", "2K"]; // ["1K", "2K", "4K"];
+// Base resolutions (always available)
+const BASE_RESOLUTIONS: Resolution[] = ["1K", "2K"];
 
 const MODELS: { value: ModelType; label: string }[] = [
   { value: "nano-banana", label: "nano-banana-Flash（pro 1/4价格，速度快）" },
   { value: "nano-banana-pro", label: "nano-banana-pro（满血版）" },
+];
+
+const PROVIDERS: { value: ImageProvider; label: string }[] = [
+  { value: "google", label: "Google Vertex AI" },
+  { value: "aabao", label: "AABao API" },
 ];
 
 type NanoBananaNodeType = Node<NanoBananaNodeData, "nanoBanana">;
@@ -97,6 +101,15 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
       const aspectRatio = e.target.value as AspectRatio;
       updateNodeData(id, { aspectRatio });
       saveNanoBananaDefaults({ aspectRatio });
+    },
+    [id, updateNodeData]
+  );
+
+  const handleProviderChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const provider = e.target.value as ImageProvider;
+      updateNodeData(id, { provider });
+      saveNanoBananaDefaults({ provider });
     },
     [id, updateNodeData]
   );
@@ -224,6 +237,16 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
 
   const isNanoBananaPro = nodeData.model === "nano-banana-pro";
   const hasCarouselImages = (nodeData.imageHistory || []).length > 1;
+
+  // Dynamic resolutions: AABao + Pro supports 4K, Google only 1K/2K
+  const availableResolutions = useMemo(() => {
+    // For AABao provider with Pro model: 1K, 2K, 4K
+    if ((nodeData.provider === "aabao") && isNanoBananaPro) {
+      return ["1K", "2K", "4K"] as Resolution[];
+    }
+    // For Google provider or non-Pro model: 1K, 2K only
+    return BASE_RESOLUTIONS;
+  }, [nodeData.provider, isNanoBananaPro]);
 
   return (
     <BaseNode
@@ -423,6 +446,19 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
           </div>
         )}
 
+        {/* Provider selector */}
+        <select
+          value={nodeData.provider || "google"}
+          onChange={handleProviderChange}
+          className="nodrag w-full text-[10px] py-1 px-1.5 border border-neutral-700 rounded bg-neutral-900/50 focus:outline-none focus:ring-1 focus:ring-neutral-600 text-neutral-300 shrink-0"
+        >
+          {PROVIDERS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+
         {/* Model selector */}
         <select
           value={nodeData.model}
@@ -460,7 +496,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
             onChange={handleResolutionChange}
             className="nodrag w-12 text-[10px] py-1 px-1.5 border border-neutral-700 rounded bg-neutral-900/50 focus:outline-none focus:ring-1 focus:ring-neutral-600 text-neutral-300"
           >
-            {RESOLUTIONS.map((res) => (
+            {availableResolutions.map((res) => (
               <option key={res} value={res}>
                 {res}
               </option>
@@ -468,8 +504,8 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
           </select>
         </div>
 
-        {/* Google Search toggle - only for nano-banana-pro */}
-        {isNanoBananaPro && (
+        {/* Google Search toggle - only for nano-banana-pro with Google provider */}
+        {isNanoBananaPro && (nodeData.provider === "google" || !nodeData.provider) && (
           <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 shrink-0 cursor-pointer">
             <input
               type="checkbox"

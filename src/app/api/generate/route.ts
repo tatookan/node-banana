@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import { GenerateRequest, GenerateResponse, ModelType, Resolution } from "@/types";
+import { GenerateRequest, GenerateResponse, ModelType, Resolution, ImageProvider } from "@/types";
 import { recordImageGeneration, getUserIdFromToken } from "@/lib/usageTracker";
 import { uploadGeneratedImageInBackground } from "@/lib/r2-upload";
 import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
@@ -8,82 +8,373 @@ import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
 
-// Map model types to Gemini model IDs
+// Map model types to Gemini model IDs (same for both providers)
 const MODEL_MAP: Record<ModelType, string> = {
   "nano-banana": "gemini-2.5-flash-image",
   "nano-banana-pro": "gemini-3-pro-image-preview",
 };
 
+// AABao API configuration
+// Use top suffix for VIP keys: https://api.aabao.vip or https://top.aabao.vip
+const AABAO_API_BASE = process.env.AABAO_API_BASE || "https://api.aabao.vip";
+
 // Maximum number of input images allowed (Gemini API limit)
 const MAX_IMAGES = 14;
 
+// Helper function: extract base64 image data
+function extractImageData(images: string[], requestId: string) {
+  return (images || []).map((image, idx) => {
+    if (image.includes("base64,")) {
+      const [header, data] = image.split("base64,");
+      const mimeMatch = header.match(/data:([^;]+)/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+      console.log(`[API:${requestId}]   Image ${idx + 1}: ${mimeType}, ${(data.length / 1024).toFixed(2)}KB base64`);
+      return { data, mimeType };
+    }
+    console.log(`[API:${requestId}]   Image ${idx + 1}: No base64 header, assuming PNG, ${(image.length / 1024).toFixed(2)}KB`);
+    return { data: image, mimeType: "image/png" };
+  });
+}
+
+// Helper function: build request parts
+function buildRequestParts(prompt: string, imageData: Array<{ data: string; mimeType: string }>) {
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+    { text: prompt },
+    ...imageData.map(({ data, mimeType }) => ({
+      inlineData: { mimeType, data },
+    })),
+  ];
+  return parts;
+}
+
+// Helper function: extract image from Gemini response
+function extractImageFromResponse(response: any, requestId: string): string | null {
+  const candidates = response.candidates;
+  if (!candidates || candidates.length === 0) {
+    console.error(`[API:${requestId}] ❌ No candidates in response`);
+    return null;
+  }
+
+  const responseParts = candidates[0].content?.parts;
+  if (!responseParts) {
+    console.error(`[API:${requestId}] ❌ No parts in candidate content`);
+    return null;
+  }
+
+  console.log(`[API:${requestId}] Parts count in first candidate: ${responseParts.length}`);
+  responseParts.forEach((part: any, idx: number) => {
+    const partKeys = Object.keys(part);
+    console.log(`[API:${requestId}] Part ${idx + 1}: ${partKeys.join(', ')}`);
+  });
+
+  for (const part of responseParts) {
+    if (part.inlineData?.data) {
+      const mimeType = part.inlineData.mimeType || "image/png";
+      const imageData = part.inlineData.data;
+      const imageSizeKB = (imageData.length / 1024).toFixed(2);
+      console.log(`[API:${requestId}] ✓ Found image in response: ${mimeType}, ${imageSizeKB}KB base64`);
+      return `data:${mimeType};base64,${imageData}`;
+    }
+  }
+
+  // Check for text error
+  for (const part of responseParts) {
+    if (part.text) {
+      console.error(`[API:${requestId}] ❌ Model returned text instead of image`);
+      console.error(`[API:${requestId}] Text preview: "${part.text.substring(0, 200)}"`);
+      throw new Error(`Model returned text instead of image: ${part.text.substring(0, 200)}`);
+    }
+  }
+
+  console.error(`[API:${requestId}] ❌ No image or text found in response`);
+  return null;
+}
+
+// Generate with Google Vertex AI (via Cloudflare Worker proxy)
+async function generateWithGoogle(
+  images: string[],
+  prompt: string,
+  model: ModelType,
+  aspectRatio?: string,
+  resolution?: Resolution,
+  useGoogleSearch?: boolean,
+  resonanceMode?: boolean,
+  systemPrompt?: string,
+  topP?: number,
+  requestId?: string
+): Promise<string> {
+  const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
+  if (!apiKey) {
+    throw new Error("GOOGLE_CLOUD_API_KEY not configured");
+  }
+
+  const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
+
+  const ai = new GoogleGenAI({
+    vertexai: true,
+    apiKey: apiKey,
+    httpOptions: {
+      baseUrl: cloudflareWorkerUrl,
+    },
+  });
+
+  const modelId = MODEL_MAP[model];
+  console.log(`[API:${requestId}] Using Google Vertex AI via Cloudflare Worker`);
+  console.log(`[API:${requestId}]   Model: ${model} -> ${modelId}`);
+  console.log(`[API:${requestId}]   Proxy: ${cloudflareWorkerUrl}`);
+
+  const imageData = extractImageData(images, requestId!);
+  const parts = buildRequestParts(prompt, imageData);
+  console.log(`[API:${requestId}] Request parts count: ${parts.length} (1 text + ${imageData.length} images)`);
+
+  // Build config for Google (includes outputMimeType)
+  const config: any = {
+    responseModalities: ["TEXT", "IMAGE"],
+    imageConfig: {
+      outputMimeType: "image/png",  // Google supports this
+    },
+  };
+
+  if (systemPrompt && systemPrompt.trim()) {
+    config.systemInstruction = {
+      parts: [{ text: systemPrompt.trim() }]
+    };
+    console.log(`[API:${requestId}]   System prompt: ${systemPrompt.substring(0, 100)}${systemPrompt.length > 100 ? "..." : ""}`);
+  }
+
+  if (topP !== undefined) {
+    config.topP = topP;
+    console.log(`[API:${requestId}]   Top P: ${topP}`);
+  }
+
+  if (aspectRatio) {
+    config.imageConfig.aspectRatio = aspectRatio;
+    console.log(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
+  }
+
+  if (resolution) {
+    config.imageConfig.imageSize = resolution;
+    console.log(`[API:${requestId}]   Added imageSize: ${resolution}`);
+  }
+
+  const tools: any[] = [];
+  if (model === "nano-banana-pro" && useGoogleSearch) {
+    tools.push({ googleSearch: {} });
+    console.log(`[API:${requestId}]   Added Google Search tool`);
+  }
+
+  console.log(`[API:${requestId}] Final config:`, JSON.stringify(config, null, 2));
+  if (tools.length > 0) {
+    console.log(`[API:${requestId}] Tools:`, JSON.stringify(tools, null, 2));
+  }
+
+  console.log(`[API:${requestId}] Calling Gemini API...`);
+  const geminiStartTime = Date.now();
+
+  const response = await ai.models.generateContent({
+    model: modelId,
+    contents: [{ role: "user", parts }],
+    config,
+    ...(tools.length > 0 && { tools }),
+  });
+
+  const geminiDuration = Date.now() - geminiStartTime;
+  console.log(`[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`);
+
+  const dataUrl = extractImageFromResponse(response, requestId || '');
+  if (!dataUrl) {
+    throw new Error("No image in response");
+  }
+
+  return dataUrl;
+}
+
+// Generate with AABao API (direct call, no proxy)
+async function generateWithAabao(
+  images: string[],
+  prompt: string,
+  model: ModelType,
+  aspectRatio?: string,
+  resolution?: Resolution,
+  useGoogleSearch?: boolean,
+  resonanceMode?: boolean,
+  systemPrompt?: string,
+  topP?: number,
+  requestId?: string
+): Promise<string> {
+  // Use the same Cloudflare Worker as Google (with /aabao/ path prefix)
+  const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
+
+  // AABao uses specific model ID for 4K resolution
+  let modelId = MODEL_MAP[model];
+  if (model === "nano-banana-pro" && resolution === "4K") {
+    modelId = "gemini-3-pro-image-preview-4k";
+    console.log(`[API:${requestId}]   Using 4K-specific model: ${modelId}`);
+  }
+
+  // Use Worker with /aabao/ path prefix to trigger AABao routing
+  const endpoint = `${cloudflareWorkerUrl}/aabao/v1beta/models/${modelId}:generateContent/`;
+
+  console.log(`[API:${requestId}] Using AABao API via Cloudflare Worker`);
+  console.log(`[API:${requestId}]   Model: ${model} -> ${modelId}`);
+  console.log(`[API:${requestId}]   Worker: ${cloudflareWorkerUrl}`);
+  console.log(`[API:${requestId}]   Endpoint: ${endpoint}`);
+
+  const imageData = extractImageData(images, requestId!);
+  const parts = buildRequestParts(prompt, imageData);
+  console.log(`[API:${requestId}] Request parts count: ${parts.length} (1 text + ${imageData.length} images)`);
+
+  // Build config for AABao (does NOT include outputMimeType - not supported)
+  const config: any = {
+    responseModalities: ["TEXT", "IMAGE"],
+    imageConfig: {},
+  };
+
+  if (systemPrompt && systemPrompt.trim()) {
+    config.systemInstruction = {
+      parts: [{ text: systemPrompt.trim() }]
+    };
+    console.log(`[API:${requestId}]   System prompt: ${systemPrompt.substring(0, 100)}${systemPrompt.length > 100 ? "..." : ""}`);
+  }
+
+  if (topP !== undefined) {
+    config.topP = topP;
+    console.log(`[API:${requestId}]   Top P: ${topP}`);
+  }
+
+  if (aspectRatio) {
+    config.imageConfig.aspectRatio = aspectRatio;
+    console.log(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
+  }
+
+  if (resolution) {
+    config.imageConfig.imageSize = resolution;
+    console.log(`[API:${requestId}]   Added imageSize: ${resolution}`);
+  }
+
+  // Note: AABao does NOT support outputMimeType or Google Search
+  if (useGoogleSearch) {
+    console.warn(`[API:${requestId}] ⚠ Google Search requested but AABao provider may not support it`);
+  }
+
+  console.log(`[API:${requestId}] Final config:`, JSON.stringify(config, null, 2));
+
+  // Build request body in Gemini native format
+  const requestBody = {
+    contents: [{ role: "user", parts }],
+    generationConfig: config,
+  };
+
+  console.log(`[API:${requestId}] Calling AABao API...`);
+  const aabaoStartTime = Date.now();
+
+  // AABao API can take 40-90 seconds for 2K, longer for 4K
+  // Set up extended timeout handling
+  const controller = new AbortController();
+  const timeout = 300000; // 5 minutes for 4K generation
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    // Build headers for Worker request
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "User-Agent": "node-banana/1.0",
+      "X-API-Provider": "aabao",  // Tells Worker to route to AABao
+    };
+
+    // Fetch request through Worker
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const aabaoDuration = Date.now() - aabaoStartTime;
+    console.log(`[API:${requestId}] AABao API call completed in ${aabaoDuration}ms`);
+    console.log(`[API:${requestId}] Response status: ${response.status}, headers: ${response.headers.get('content-type')}`);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+      console.error(`[API:${requestId}] ❌ AABao API error: ${response.status}`);
+      console.error(`[API:${requestId}] Error details:`, JSON.stringify(errorData));
+      throw new Error(`AABao API error (${response.status}): ${JSON.stringify(errorData)}`);
+    }
+
+    console.log(`[API:${requestId}] Parsing JSON response (this may take a while for large images)...`);
+    // Read as text first for better progress tracking, then parse
+    const responseText = await response.text();
+    console.log(`[API:${requestId}] Response body received, size: ${(responseText.length / 1024 / 1024).toFixed(2)}MB`);
+    const data = JSON.parse(responseText);
+    console.log(`[API:${requestId}] JSON parsed, extracting image...`);
+
+    const dataUrl = extractImageFromResponse(data, requestId || '');
+    if (!dataUrl) {
+      throw new Error("No image in AABao API response");
+    }
+
+    console.log(`[API:${requestId}] ✓ Image extracted successfully, size: ${(dataUrl.length / 1024).toFixed(2)}KB`);
+    return dataUrl;
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`[API:${requestId}] ❌ AABao API timeout after ${timeout}ms`);
+      throw new Error(`AABao API request timeout (${timeout/1000}s). 4K generation may take longer - please try again or use a lower resolution.`);
+    }
+
+    throw error;
+  }
+}
+
+// Main POST handler
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7);
   console.log(`\n[API:${requestId}] ========== NEW GENERATE REQUEST ==========`);
   console.log(`[API:${requestId}] Timestamp: ${new Date().toISOString()}`);
 
   try {
-    // Initialize Google GenAI client with API Key for Vertex AI
-    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
-    if (!apiKey) {
-      console.error(`[API:${requestId}] ❌ GOOGLE_CLOUD_API_KEY not configured`);
-      return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "GOOGLE_CLOUD_API_KEY not configured",
-        },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[API:${requestId}] Initializing Google GenAI client with API Key (Vertex AI mode)...`);
-
-    // Use Cloudflare Worker as proxy for Vertex AI API
-    const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
-
-    const ai = new GoogleGenAI({
-      vertexai: true,
-      apiKey: apiKey,
-      httpOptions: {
-        baseUrl: cloudflareWorkerUrl,
-      },
-    });
-
-    console.log(`[API:${requestId}] Parsing request body...`);
-
     let body: GenerateRequest;
     try {
       body = await request.json();
     } catch (parseError) {
       console.error(`[API:${requestId}] ❌ JSON parse error:`, parseError);
       return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "Request body too large or malformed. Please reduce the number or size of input images (max 14 images, each under 5MB recommended).",
-        },
+        { success: false, error: "Request body too large or malformed. Please reduce the number or size of input images (max 14 images, each under 5MB recommended)." },
         { status: 413 }
       );
     }
-    const { images, prompt, model = "nano-banana-pro", aspectRatio, resolution, useGoogleSearch, resonanceMode = true, systemPrompt, topP } = body;
 
-    const modelId = MODEL_MAP[model];
+    const {
+      images = [],
+      prompt,
+      provider = "google",  // Default to Google for backward compatibility
+      aspectRatio,
+      resolution,
+      model = "nano-banana-pro",
+      useGoogleSearch,
+      resonanceMode = true,
+      systemPrompt,
+      topP,
+    } = body;
+
     console.log(`[API:${requestId}] Request parameters:`);
-    console.log(`[API:${requestId}]   - Model: ${model} -> ${modelId}`);
-    console.log(`[API:${requestId}]   - Images count: ${images?.length || 0}`);
+    console.log(`[API:${requestId}]   - Provider: ${provider}`);
+    console.log(`[API:${requestId}]   - Model: ${model}`);
+    console.log(`[API:${requestId}]   - Images count: ${images.length}`);
     console.log(`[API:${requestId}]   - Prompt length: ${prompt?.length || 0} chars`);
     console.log(`[API:${requestId}]   - Aspect Ratio: ${aspectRatio || 'default'}`);
     console.log(`[API:${requestId}]   - Resolution: ${resolution || 'default'}`);
     console.log(`[API:${requestId}]   - Google Search: ${useGoogleSearch || false}`);
+    console.log(`[API:${requestId}]   - Resonance Mode: ${resonanceMode}`);
 
-    // Validate image count limit
-    const imageCount = images?.length || 0;
+    // Validate image count
+    const imageCount = images.length;
     if (imageCount > MAX_IMAGES) {
       console.error(`[API:${requestId}] ❌ Validation failed: too many images (${imageCount} > ${MAX_IMAGES})`);
       return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: `Maximum ${MAX_IMAGES} images allowed. You provided ${imageCount} images.`,
-        },
+        { success: false, error: `Maximum ${MAX_IMAGES} images allowed. You provided ${imageCount} images.` },
         { status: 400 }
       );
     }
@@ -91,15 +382,12 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       console.error(`[API:${requestId}] ❌ Validation failed: missing prompt`);
       return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "Prompt is required",
-        },
+        { success: false, error: "Prompt is required" },
         { status: 400 }
       );
     }
 
-    // 应用提示词增强：根据共鸣模式设置决定是否重复3次
+    // Apply prompt enhancement (resonance mode: repeat 3 times)
     const finalPrompt = resonanceMode
       ? (() => {
           const enhancementResult = enhancePrompt(prompt, 3);
@@ -110,231 +398,66 @@ export async function POST(request: NextRequest) {
         })()
       : prompt;
 
-    console.log(`[API:${requestId}] Extracting image data...`);
-    // Extract base64 data and MIME types from data URLs
-    const imageData = (images || []).map((image, idx) => {
-      if (image.includes("base64,")) {
-        const [header, data] = image.split("base64,");
-        // Extract MIME type from header (e.g., "data:image/png;" -> "image/png")
-        const mimeMatch = header.match(/data:([^;]+)/);
-        const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
-        console.log(`[API:${requestId}]   Image ${idx + 1}: ${mimeType}, ${(data.length / 1024).toFixed(2)}KB base64`);
-        return { data, mimeType };
-      }
-      console.log(`[API:${requestId}]   Image ${idx + 1}: No base64 header, assuming PNG, ${(image.length / 1024).toFixed(2)}KB`);
-      return { data: image, mimeType: "image/png" };
-    });
-
-    // Build request parts array with final prompt and all images
-    console.log(`[API:${requestId}] Building request parts...`);
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-      { text: finalPrompt },
-      ...imageData.map(({ data, mimeType }) => ({
-        inlineData: {
-          mimeType,
-          data,
-        },
-      })),
-    ];
-    console.log(`[API:${requestId}] Request parts count: ${parts.length} (1 text + ${imageData.length} images)`);
-
-    // Build config object
-    console.log(`[API:${requestId}] Building generation config...`);
-    const config: any = {
-      responseModalities: ["TEXT", "IMAGE"],  // TEXT first, then IMAGE (per official docs)
-    };
-
-    // Add system instruction if provided
-    if (systemPrompt && systemPrompt.trim()) {
-      config.systemInstruction = {
-        parts: [{ text: systemPrompt.trim() }]
-      };
-      console.log(`[API:${requestId}]   System prompt: ${systemPrompt.substring(0, 100)}${systemPrompt.length > 100 ? "..." : ""}`);
-    }
-
-    // Add topP if provided
-    if (topP !== undefined) {
-      config.topP = topP;
-      console.log(`[API:${requestId}]   Top P: ${topP}`);
-    }
-
-    // Build imageConfig - both models support aspect ratio, resolution, and outputMimeType
-    // Cloudflare Worker 会深度转换所有 camelCase 到 snake_case
-    const imageConfig: any = {};
-
-    if (aspectRatio) {
-      imageConfig.aspectRatio = aspectRatio;
-      console.log(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
-    }
-
-    // Add resolution for both models
-    if (resolution) {
-      imageConfig.imageSize = resolution;
-      console.log(`[API:${requestId}]   Added imageSize: ${resolution}`);
-    }
-
-    // Add outputMimeType for both models
-    imageConfig.outputMimeType = "image/png";
-    console.log(`[API:${requestId}]   Added outputMimeType: image/png`);
-
-    // Add imageConfig to config if it has any properties
-    if (Object.keys(imageConfig).length > 0) {
-      config.imageConfig = imageConfig;
-    }
-
-    // Add tools array for Google Search (only nano-banana-pro)
-    const tools = [];
-    if (model === "nano-banana-pro" && useGoogleSearch) {
-      tools.push({ googleSearch: {} });
-      console.log(`[API:${requestId}]   Added Google Search tool`);
-    }
-
-    console.log(`[API:${requestId}] Final config:`, JSON.stringify(config, null, 2));
-    if (tools.length > 0) {
-      console.log(`[API:${requestId}] Tools:`, JSON.stringify(tools, null, 2));
-    }
-
-    // Make request to Gemini API
-    console.log(`[API:${requestId}] Calling Gemini API...`);
-    const geminiStartTime = Date.now();
-
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: [
-        {
-          role: "user",
-          parts,
-        },
-      ],
-      config,
-      ...(tools.length > 0 && { tools }),
-    });
-
-    const geminiDuration = Date.now() - geminiStartTime;
-    console.log(`[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`);
-
-    // Extract image from response
-    console.log(`[API:${requestId}] Processing response...`);
-    const candidates = response.candidates;
-    console.log(`[API:${requestId}] Candidates count: ${candidates?.length || 0}`);
-
-    if (!candidates || candidates.length === 0) {
-      console.error(`[API:${requestId}] ❌ No candidates in response`);
-      console.error(`[API:${requestId}] Full response:`, JSON.stringify(response, null, 2));
+    // Route to appropriate provider
+    let dataUrl: string;
+    if (provider === "google") {
+      dataUrl = await generateWithGoogle(
+        images, finalPrompt, model, aspectRatio, resolution,
+        useGoogleSearch, resonanceMode, systemPrompt, topP, requestId
+      );
+    } else if (provider === "aabao") {
+      dataUrl = await generateWithAabao(
+        images, finalPrompt, model, aspectRatio, resolution,
+        useGoogleSearch, resonanceMode, systemPrompt, topP, requestId
+      );
+    } else {
+      console.error(`[API:${requestId}] ❌ Unknown provider: ${provider}`);
       return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "No response from AI model",
-        },
-        { status: 500 }
+        { success: false, error: `Unknown provider: ${provider}` },
+        { status: 400 }
       );
     }
 
-    const responseParts = candidates[0].content?.parts;
-    console.log(`[API:${requestId}] Parts count in first candidate: ${responseParts?.length || 0}`);
+    const dataUrlSizeKB = (dataUrl.length / 1024).toFixed(2);
+    console.log(`[API:${requestId}] Data URL size: ${dataUrlSizeKB}KB`);
 
-    if (!responseParts) {
-      console.error(`[API:${requestId}] ❌ No parts in candidate content`);
-      console.error(`[API:${requestId}] Candidate:`, JSON.stringify(candidates[0], null, 2));
-      return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "No content in response",
-        },
-        { status: 500 }
-      );
+    const responsePayload = { success: true, image: dataUrl };
+    const responseSize = JSON.stringify(responsePayload).length;
+    const responseSizeMB = (responseSize / (1024 * 1024)).toFixed(2);
+    console.log(`[API:${requestId}] Total response payload size: ${responseSizeMB}MB`);
+
+    if (responseSize > 4.5 * 1024 * 1024) {
+      console.warn(`[API:${requestId}] ⚠️ Response size (${responseSizeMB}MB) is approaching Next.js 5MB limit!`);
     }
 
-    // Log all parts
-    responseParts.forEach((part: any, idx: number) => {
-      const partKeys = Object.keys(part);
-      console.log(`[API:${requestId}] Part ${idx + 1}: ${partKeys.join(', ')}`);
-    });
+    console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
 
-    // Find image part in response
-    for (const part of responseParts) {
-      if (part.inlineData && part.inlineData.data) {
-        const mimeType = part.inlineData.mimeType || "image/png";
-        const imageData = part.inlineData.data;
-        const imageSizeKB = (imageData.length / 1024).toFixed(2);
-        console.log(`[API:${requestId}] ✓ Found image in response: ${mimeType}, ${imageSizeKB}KB base64`);
-
-        const dataUrl = `data:${mimeType};base64,${imageData}`;
-        const dataUrlSizeKB = (dataUrl.length / 1024).toFixed(2);
-        console.log(`[API:${requestId}] Data URL size: ${dataUrlSizeKB}KB`);
-
-        const responsePayload = { success: true, image: dataUrl };
-        const responseSize = JSON.stringify(responsePayload).length;
-        const responseSizeMB = (responseSize / (1024 * 1024)).toFixed(2);
-        console.log(`[API:${requestId}] Total response payload size: ${responseSizeMB}MB`);
-
-        if (responseSize > 4.5 * 1024 * 1024) {
-          console.warn(`[API:${requestId}] ⚠️ Response size (${responseSizeMB}MB) is approaching Next.js 5MB limit!`);
-        }
-
-        console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
-
-        // Upload to R2 in background (fire-and-forget, doesn't block response)
-        const token = request.cookies.get('auth_token')?.value;
-        if (token) {
-          const userId = await getUserIdFromToken(token);
-          if (userId) {
-            // Record usage statistics
-            const actualResolution: Resolution = resolution || "1K";
-            await recordImageGeneration(userId, model, actualResolution, 1);
-
-            // Upload to R2 in background
-            uploadGeneratedImageInBackground(userId, dataUrl, {
-              prompt,
-              model,
-              aspectRatio,
-              resolution: actualResolution,
-            });
-          }
-        }
-
-        // Create response with explicit headers to handle large payloads
-        const response = NextResponse.json<GenerateResponse>(responsePayload);
-        response.headers.set('Content-Type', 'application/json');
-        response.headers.set('Content-Length', responseSize.toString());
-
-        console.log(`[API:${requestId}] Response headers set, returning...`);
-        return response;
+    // Upload to R2 in background (fire-and-forget, doesn't block response)
+    const token = request.cookies.get('auth_token')?.value;
+    if (token) {
+      const userId = await getUserIdFromToken(token);
+      if (userId) {
+        const actualResolution: Resolution = resolution || "1K";
+        await recordImageGeneration(userId, model, actualResolution, 1);
+        uploadGeneratedImageInBackground(userId, dataUrl, {
+          prompt,
+          model,
+          aspectRatio,
+          resolution: actualResolution,
+        });
       }
     }
 
-    // If no image found, check for text error
-    console.warn(`[API:${requestId}] ⚠ No image found in parts, checking for text...`);
-    for (const part of responseParts) {
-      if (part.text) {
-        console.error(`[API:${requestId}] ❌ Model returned text instead of image`);
-        console.error(`[API:${requestId}] Text preview: "${part.text.substring(0, 200)}"`);
-        return NextResponse.json<GenerateResponse>(
-          {
-            success: false,
-            error: `Model returned text instead of image: ${part.text.substring(0, 200)}`,
-          },
-          { status: 500 }
-        );
-      }
-    }
+    const response = NextResponse.json<GenerateResponse>(responsePayload);
+    response.headers.set('Content-Type', 'application/json');
+    response.headers.set('Content-Length', responseSize.toString());
+    return response;
 
-    console.error(`[API:${requestId}] ❌ No image or text found in response`);
-    console.error(`[API:${requestId}] All parts:`, JSON.stringify(responseParts, null, 2));
-    return NextResponse.json<GenerateResponse>(
-      {
-        success: false,
-        error: "No image in response",
-      },
-      { status: 500 }
-    );
   } catch (error) {
-    const requestId = 'unknown';
     console.error(`[API:${requestId}] ❌❌❌ EXCEPTION CAUGHT IN API ROUTE ❌❌❌`);
     console.error(`[API:${requestId}] Error type:`, error?.constructor?.name);
     console.error(`[API:${requestId}] Error toString:`, String(error));
 
-    // Extract detailed error information
     let errorMessage = "Generation failed";
     let errorDetails = "";
 
@@ -344,18 +467,14 @@ export async function POST(request: NextRequest) {
       console.error(`[API:${requestId}] Error message:`, errorMessage);
       console.error(`[API:${requestId}] Error stack:`, error.stack);
 
-      // Check for specific error types
       if ("cause" in error && error.cause) {
         console.error(`[API:${requestId}] Error cause:`, error.cause);
         errorDetails += `\nCause: ${JSON.stringify(error.cause)}`;
       }
     }
 
-    // Try to extract more details from API errors
     if (error && typeof error === "object") {
       const apiError = error as Record<string, unknown>;
-      console.error(`[API:${requestId}] Error object keys:`, Object.keys(apiError));
-
       if (apiError.status) {
         console.error(`[API:${requestId}] Error status:`, apiError.status);
         errorDetails += `\nStatus: ${apiError.status}`;
@@ -368,43 +487,21 @@ export async function POST(request: NextRequest) {
         console.error(`[API:${requestId}] Error errorDetails:`, apiError.errorDetails);
         errorDetails += `\nDetails: ${JSON.stringify(apiError.errorDetails)}`;
       }
-      if (apiError.response) {
-        try {
-          console.error(`[API:${requestId}] Error response:`, apiError.response);
-          errorDetails += `\nResponse: ${JSON.stringify(apiError.response)}`;
-        } catch {
-          errorDetails += `\nResponse: [unable to stringify]`;
-        }
-      }
-
-      // Log entire error object for debugging
-      try {
-        console.error(`[API:${requestId}] Full error object:`, JSON.stringify(apiError, null, 2));
-      } catch {
-        console.error(`[API:${requestId}] Could not stringify full error object`);
-      }
     }
 
     console.error(`[API:${requestId}] Compiled error details:`, errorDetails);
 
-    // Handle rate limiting
     if (errorMessage.includes("429")) {
       console.error(`[API:${requestId}] Rate limit error detected`);
       return NextResponse.json<GenerateResponse>(
-        {
-          success: false,
-          error: "Rate limit reached. Please wait and try again.",
-        },
+        { success: false, error: "Rate limit reached. Please wait and try again." },
         { status: 429 }
       );
     }
 
     console.error(`[API:${requestId}] Returning 500 error response`);
     return NextResponse.json<GenerateResponse>(
-      {
-        success: false,
-        error: `${errorMessage}${errorDetails ? ` | Details: ${errorDetails.substring(0, 500)}` : ""}`,
-      },
+      { success: false, error: `${errorMessage}${errorDetails ? ` | Details: ${errorDetails.substring(0, 500)}` : ""}` },
       { status: 500 }
     );
   }

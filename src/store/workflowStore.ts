@@ -195,6 +195,7 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         inputImages: [],
         inputPrompt: null,
         outputImage: null,
+        provider: defaults.provider as "google" | "aabao",
         aspectRatio: defaults.aspectRatio,
         resolution: defaults.resolution,
         model: defaults.model,
@@ -334,6 +335,7 @@ const saveWorkflowCostData = (data: WorkflowCostData): void => {
 const NANO_BANANA_DEFAULTS_KEY = "node-banana-nanoBanana-defaults";
 
 interface NanoBananaDefaults {
+  provider: string;
   aspectRatio: string;
   resolution: string;
   model: string;
@@ -341,18 +343,24 @@ interface NanoBananaDefaults {
 }
 
 const loadNanoBananaDefaults = (): NanoBananaDefaults => {
+  const defaultValues = { provider: "google", aspectRatio: "1:1", resolution: "1K", model: "nano-banana-pro", useGoogleSearch: false };
   if (typeof window === "undefined") {
-    return { aspectRatio: "1:1", resolution: "1K", model: "nano-banana-pro", useGoogleSearch: false };
+    return defaultValues;
   }
   const stored = localStorage.getItem(NANO_BANANA_DEFAULTS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Ensure provider exists for backward compatibility
+      if (!parsed.provider) {
+        parsed.provider = "google";
+      }
+      return parsed;
     } catch {
-      return { aspectRatio: "1:1", resolution: "1K", model: "nano-banana-pro", useGoogleSearch: false };
+      return defaultValues;
     }
   }
-  return { aspectRatio: "1:1", resolution: "1K", model: "nano-banana-pro", useGoogleSearch: false };
+  return defaultValues;
 };
 
 export const saveNanoBananaDefaults = (settings: Partial<NanoBananaDefaults>) => {
@@ -1137,6 +1145,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               const requestPayload = {
                 images,
                 prompt: text,
+                provider: nodeData.provider || "google",
                 aspectRatio: nodeData.aspectRatio,
                 resolution: nodeData.resolution,
                 model: nodeData.model,
@@ -1914,6 +1923,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
           body: JSON.stringify({
             images,
             prompt: text,
+            provider: nodeData.provider || "google",
             aspectRatio: nodeData.aspectRatio,
             resolution: nodeData.resolution,
             model: nodeData.model,

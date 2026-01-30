@@ -21,6 +21,9 @@ export type Resolution = "1K" | "2K" | "4K";
 // Image Generation Model Options
 export type ModelType = "nano-banana" | "nano-banana-pro";
 
+// Image Generation Provider Options
+export type ImageProvider = "google" | "aabao";
+
 // LLM Provider Options
 export type LLMProvider = "google" | "openai";
 
@@ -154,6 +157,7 @@ export interface NanoBananaNodeData extends BaseNodeData {
   inputPrompt: string | null;
   outputImage: string | null;
   outputImageRef?: string;  // External image reference for storage optimization
+  provider?: ImageProvider;  // API provider: google (via Cloudflare Worker) or aabao (direct)
   aspectRatio: AspectRatio;
   resolution: Resolution; // Only used by Nano Banana Pro
   model: ModelType;
@@ -306,6 +310,7 @@ export type HandleType = "image" | "text";
 export interface GenerateRequest {
   images: string[]; // Now supports multiple images
   prompt: string;
+  provider?: ImageProvider; // API provider: google (via Cloudflare Worker) or aabao (direct)
   aspectRatio?: AspectRatio;
   resolution?: Resolution; // Only for Nano Banana Pro
   model?: ModelType;
