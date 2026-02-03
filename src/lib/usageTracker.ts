@@ -39,8 +39,8 @@ export function calculateLLMCost(
  * Get original USD cost for Gemini image generation (nano-banana)
  * The calculateGenerationCost returns RMB (now stores actual RMB values), so we convert back to USD
  */
-function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution): number {
-  const costRMB = calculateGenerationCost(model, resolution);
+function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution, provider: "google" | "aabao" = "google"): number {
+  const costRMB = calculateGenerationCost(model, resolution, provider);
   return costRMB / USD_TO_RMB;
 }
 
@@ -51,16 +51,18 @@ function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution): num
  * @param model Model type (nano-banana or nano-banana-pro)
  * @param resolution Image resolution (1K, 2K, 4K)
  * @param count Number of images generated (default: 1)
+ * @param provider Image provider (google or aabao)
  */
 export async function recordImageGeneration(
   userId: number,
   model: ModelType,
   resolution: Resolution,
-  count: number = 1
+  count: number = 1,
+  provider: "google" | "aabao" = "google"
 ): Promise<void> {
   try {
     // Get cost in RMB (from price table - now stores actual RMB values)
-    const costRMB = calculateGenerationCost(model, resolution) * count;
+    const costRMB = calculateGenerationCost(model, resolution, provider) * count;
     // Convert to original USD (for record keeping)
     const originalCostUSD = costRMB / USD_TO_RMB;
 

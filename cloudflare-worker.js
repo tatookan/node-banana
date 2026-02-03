@@ -52,7 +52,7 @@ async function handleAabaoRequest(request, url, env) {
 
   // 构建目标 URL - 移除 /aabao 前缀
   const pathname = url.pathname.replace(/^\/aabao/, '');
-  const aabaoHost = env.AABAO_API_HOST || 'https://api.aabao.top';
+  const aabaoHost = env.AABAO_API_HOST || 'https://cf-api.aabao.top';
   const targetUrl = new URL(pathname + url.search, aabaoHost);
 
   console.log(`[Worker-AABao] Target: ${targetUrl.href}`);

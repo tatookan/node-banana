@@ -142,7 +142,9 @@ class Logger {
 
     // Also log to console for development
     const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
-    console[consoleMethod](`[${category}] ${message}`, context || '', error || '');
+    // Use JSON.stringify for context to ensure it displays properly
+    const contextStr = context && Object.keys(context).length > 0 ? JSON.stringify(context, null, 2) : '';
+    console[consoleMethod](`[${category}] ${message}`, contextStr, error || '');
   }
 
   /**

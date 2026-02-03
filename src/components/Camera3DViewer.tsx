@@ -139,11 +139,29 @@ export function Camera3DViewer({
         updateVisualsRef.current?.();
       }
     } else if (dragTargetRef.current === 'distance') {
-      const newDist = 5 - three.mouse.y * 5;
-      const clampedDist = Math.max(0.1, Math.min(10.0, newDist));
-      liveValuesRef.current.zoom = Math.round(clampedDist * 10) / 10;
-      onAngleChange?.(liveValuesRef.current.azimuth, liveValuesRef.current.elevation, liveValuesRef.current.zoom);
-      updateVisualsRef.current?.();
+      // Create a plane perpendicular to the camera view direction (from center to camera)
+      const azRad = (liveValuesRef.current.azimuth * Math.PI) / 180;
+      const elRad = (liveValuesRef.current.elevation * Math.PI) / 180;
+      const viewDir = new THREE.Vector3(
+        Math.sin(azRad) * Math.cos(elRad),
+        Math.sin(elRad),
+        Math.cos(azRad) * Math.cos(elRad)
+      ).normalize();
+
+      // Plane at center, facing toward camera
+      const distPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(viewDir, three.CENTER);
+      const intersect = new THREE.Vector3();
+
+      if (three.raycaster.ray.intersectPlane(distPlane, intersect)) {
+        // Calculate distance from center to intersection point
+        const distFromCenter = intersect.distanceTo(three.CENTER);
+        // Convert to zoom value (scale appropriately)
+        const zoomValue = (distFromCenter - 0.5) / 0.3; // Adjust scale factor as needed
+        const clampedDist = Math.max(0.1, Math.min(10.0, zoomValue));
+        liveValuesRef.current.zoom = Math.round(clampedDist * 10) / 10;
+        onAngleChange?.(liveValuesRef.current.azimuth, liveValuesRef.current.elevation, liveValuesRef.current.zoom);
+        updateVisualsRef.current?.();
+      }
     }
   };
 

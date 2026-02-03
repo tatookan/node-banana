@@ -63,6 +63,13 @@ export interface ImageInputNodeData extends BaseNodeData {
   imageRef?: string;  // External image reference for storage optimization
   filename: string | null;
   dimensions: { width: number; height: number } | null;
+  compressionInfo?: {
+    originalSize: number;
+    compressedSize: number;
+    ratio: number;
+    method: string;
+    forAABao: boolean;
+  };
 }
 
 // Annotation Shape Types
@@ -265,6 +272,7 @@ export interface SplitGridNodeData extends BaseNodeData {
     resolution: Resolution;
     model: ModelType;
     useGoogleSearch: boolean;
+    provider?: ImageProvider;
   };
   childNodeIds: Array<{
     imageInput: string;

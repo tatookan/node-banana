@@ -104,9 +104,13 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
           {/* Pricing Reference */}
           <div className="text-xs text-neutral-500 space-y-1">
             <p className="font-medium text-neutral-400">价格参考：</p>
-            <p>nano-banana-Flash：{formatCost(PRICING["nano-banana"]["1K"])}/张</p>
-            <p>nano-banana-pro 1K/2K：{formatCost(PRICING["nano-banana-pro"]["1K"])}/张</p>
-            <p>nano-banana-pro 4K：{formatCost(PRICING["nano-banana-pro"]["4K"])}/张</p>
+            <p className="text-neutral-500">Google Vertex AI：</p>
+            <p className="ml-2">nano-banana: {formatCost(PRICING["google"]["nano-banana"]["1K"])}/张</p>
+            <p className="ml-2">nano-banana-pro 1K/2K: {formatCost(PRICING["google"]["nano-banana-pro"]["1K"])}/张</p>
+            <p className="ml-2">nano-banana-pro 4K: {formatCost(PRICING["google"]["nano-banana-pro"]["4K"])}/张</p>
+            <p className="text-neutral-500 mt-2">AABao API：</p>
+            <p className="ml-2">nano-banana: {formatCost(PRICING["aabao"]["nano-banana"]["1K"])}/张</p>
+            <p className="ml-2">nano-banana-pro: {formatCost(PRICING["aabao"]["nano-banana-pro"]["1K"])}/张</p>
             <p className="text-neutral-600 mt-2">所有价格以人民币计</p>
           </div>
         </div>

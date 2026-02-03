@@ -324,3 +324,66 @@ export function getImageDimensions(dataUrl: string): Promise<{
     img.src = dataUrl;
   });
 }
+
+// ========== AABao API 专用压缩配置 ==========
+
+/**
+ * AABao 优化：根据原始大小动态设置目标大小
+ * 目标：减少上传时间，同时尽可能保持图片质量细节
+ */
+export function getAABaoTargetSize(originalSize: number): number {
+  // 小图（<1MB）：允许 2MB
+  if (originalSize < 1 * 1024 * 1024) return 2 * 1024 * 1024;
+
+  // 中图（1-5MB）：压缩到 3MB
+  if (originalSize < 5 * 1024 * 1024) return 3 * 1024 * 1024;
+
+  // 大图（5-20MB）：压缩到 5MB
+  if (originalSize < 20 * 1024 * 1024) return 5 * 1024 * 1024;
+
+  // 超大图（>20MB）：压缩到 8MB
+  return 8 * 1024 * 1024;
+}
+
+/**
+ * AABao 优化的图片压缩
+ * 策略：质量优先，尽可能保持分辨率和细节
+ *
+ * @param file 原始图片文件
+ * @returns 压缩结果
+ */
+export async function compressImageForAABao(
+  file: File
+): Promise<CompressionResult> {
+  const targetSize = getAABaoTargetSize(file.size);
+
+  console.log(`[AABao压缩] 原始大小: ${formatFileSize(file.size)}`);
+  console.log(`[AABao压缩] 目标大小: ${formatFileSize(targetSize)}`);
+
+  // 如果已经符合要求，不做处理
+  if (file.size <= targetSize) {
+    const dataUrl = await fileToDataUrl(file);
+    const dimensions = await getImageDimensions(dataUrl);
+    return {
+      dataUrl,
+      originalSize: file.size,
+      compressedSize: file.size,
+      compressionRatio: 1,
+      wasCompressed: false,
+      method: "无需压缩（已符合AABao要求）",
+      originalDimensions: dimensions,
+      finalDimensions: dimensions,
+    };
+  }
+
+  // 使用高质量参数进行压缩
+  // - initialQuality: 0.92 (92%) - 高质量起始
+  // - maxDimension: 4096 - 4K 分辨率限制
+  return compressImage(
+    file,
+    targetSize,
+    4096,  // maxWidth: 4K
+    4096,  // maxHeight: 4K
+    0.92   // initialQuality: 92%
+  );
+}

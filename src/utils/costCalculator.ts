@@ -49,24 +49,44 @@ export function calculateViduCost(
   return credits * VIDU_CREDIT_PRICE_RMB;
 }
 
-// Pricing in RMB per image (Gemini API)
-// Converted from USD: $0.027 → ¥0.19, $0.094 → ¥0.66, $0.168 → ¥1.18
-// 注意：以下值为人民币价格
+// Pricing in RMB per image
+// Exchange rate: 1 USD = 7 RMB
+// Multi-provider pricing structure
 export const PRICING = {
-  "nano-banana": {
-    "1K": 0.19,   // $0.027 × 7
-    "2K": 0.19,   // $0.027 × 7
-    "4K": 0.19,   // $0.027 × 7
+  "google": {
+    // nano-banana-Flash (gemini-2.5-flash-preview-image-generation)
+    "nano-banana": {
+      "1K": 0.94,   // $0.134 × 7 (1,120 tokens)
+      "2K": 0.94,   // $0.134 × 7 (1,120 tokens)
+      "4K": 0.94,   // $0.134 × 7 (1,120 tokens)
+    },
+    // nano-banana-pro (gemini-3-pro-image-preview)
+    "nano-banana-pro": {
+      "1K": 0.94,   // $0.134 × 7 (1,120 image output tokens)
+      "2K": 0.94,   // $0.134 × 7 (1,120 image output tokens)
+      "4K": 1.68,   // $0.24 × 7 (2,000 image output tokens)
+    },
   },
-  "nano-banana-pro": {
-    "1K": 0.66,   // $0.094 × 7
-    "2K": 0.66,   // $0.094 × 7
-    "4K": 1.18,   // $0.168 × 7
+  "aabao": {
+    "nano-banana": {
+      "1K": 0.20,   // AABao API fixed price
+      "2K": 0.20,   // AABao API fixed price
+      "4K": 0.20,   // AABao API fixed price
+    },
+    "nano-banana-pro": {
+      "1K": 0.20,   // AABao API fixed price
+      "2K": 0.20,   // AABao API fixed price
+      "4K": 0.20,   // AABao API fixed price
+    },
   },
 } as const;
 
-export function calculateGenerationCost(model: ModelType, resolution: Resolution): number {
-  return PRICING[model][resolution];
+export function calculateGenerationCost(
+  model: ModelType,
+  resolution: Resolution,
+  provider: "google" | "aabao" = "google"
+): number {
+  return PRICING[provider][model][resolution];
 }
 
 export interface CostBreakdownItem {
@@ -93,8 +113,9 @@ export function calculatePredictedCost(nodes: WorkflowNode[]): PredictedCostResu
       const data = node.data as NanoBananaNodeData;
       const model = data.model;
       const resolution = data.resolution;
-      const unitCost = calculateGenerationCost(model, resolution);
-      const key = `${model}-${resolution}`;
+      const provider = data.provider || "google";
+      const unitCost = calculateGenerationCost(model, resolution, provider);
+      const key = `${provider}-${model}-${resolution}`;
 
       const existing = breakdown.get(key);
       if (existing) {
@@ -130,8 +151,9 @@ export function calculatePredictedCost(nodes: WorkflowNode[]): PredictedCostResu
       if (data.isConfigured && data.targetCount > 0) {
         const model = data.generateSettings.model;
         const resolution = data.generateSettings.resolution;
-        const unitCost = calculateGenerationCost(model, resolution);
-        const key = `splitGrid-${model}-${resolution}`;
+        const provider = data.generateSettings.provider || "google";
+        const unitCost = calculateGenerationCost(model, resolution, provider);
+        const key = `splitGrid-${provider}-${model}-${resolution}`;
 
         const count = data.targetCount;
         const existing = breakdown.get(key);

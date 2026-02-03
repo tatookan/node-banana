@@ -5,7 +5,7 @@ import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { ImageInputNodeData } from "@/types";
-import { compressImage, formatFileSize } from "@/utils/imageCompressor";
+import { compressImage, formatFileSize, getAABaoTargetSize } from "@/utils/imageCompressor";
 
 type ImageInputNodeType = Node<ImageInputNodeData, "imageInput">;
 
@@ -15,6 +15,34 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCompressing, setIsCompressing] = useState(false);
+
+  // 检测下游是否使用 AABao provider
+  const hasDownstreamAABaoNode = useCallback((nodeId: string): boolean => {
+    const { edges, nodes } = useWorkflowStore.getState();
+
+    // 找到所有从这个节点出发的边
+    const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+    for (const edge of outgoingEdges) {
+      const targetNode = nodes.find(n => n.id === edge.target);
+      if (!targetNode) continue;
+
+      // 如果目标节点是 nanoBanana 且使用 AABao
+      if (targetNode.type === 'nanoBanana') {
+        const targetData = targetNode.data as any;
+        if (targetData.provider === 'aabao') {
+          return true;
+        }
+      }
+
+      // 递归检查下游节点
+      if (hasDownstreamAABaoNode(targetNode.id)) {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,13 +57,23 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
       setIsCompressing(true);
 
       try {
-        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+        // 检测是否需要 AABao 压缩策略
+        const useAABaoStrategy = hasDownstreamAABaoNode(id);
+
+        // 根据策略选择不同的压缩目标
+        const maxSize = useAABaoStrategy
+          ? getAABaoTargetSize(file.size)  // AABao 使用更激进的目标
+          : 10 * 1024 * 1024;              // 默认 10MB
+
+        const initialQuality = useAABaoStrategy ? 0.92 : 0.95;
+
+        console.log(`[ImageInput] 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略，目标: ${formatFileSize(maxSize)}`);
 
         // 如果文件过大，自动压缩
-        const result = await compressImage(file, MAX_SIZE);
+        const result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
 
         // 检查压缩后的文件大小
-        if (result.compressedSize > MAX_SIZE) {
+        if (result.compressedSize > maxSize) {
           alert(
             `图片过大且无法压缩到 10MB 以下。\n` +
             `原始大小: ${formatFileSize(result.originalSize)}\n` +
@@ -64,6 +102,13 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
             image: result.dataUrl,
             filename: file.name,
             dimensions: { width: img.width, height: img.height },
+            compressionInfo: {
+              originalSize: result.originalSize,
+              compressedSize: result.compressedSize,
+              ratio: result.compressionRatio,
+              method: result.method,
+              forAABao: useAABaoStrategy,
+            },
           });
           setIsCompressing(false);
         };
@@ -78,7 +123,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         setIsCompressing(false);
       }
     },
-    [id, updateNodeData]
+    [id, updateNodeData, hasDownstreamAABaoNode]
   );
 
   const handleDrop = useCallback(
@@ -109,6 +154,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
       image: null,
       filename: null,
       dimensions: null,
+      compressionInfo: undefined,
     });
   }, [id, updateNodeData]);
 
@@ -166,6 +212,29 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
               </span>
             )}
           </div>
+          {/* 压缩信息显示 */}
+          {nodeData.compressionInfo && (
+            <div className="mt-1.5 pt-1.5 border-t border-neutral-700 shrink-0">
+              <div className="text-[9px] text-neutral-500 space-y-0.5">
+                <div className="flex justify-between">
+                  <span>原始: {formatFileSize(nodeData.compressionInfo.originalSize)}</span>
+                  <span>→ {formatFileSize(nodeData.compressionInfo.compressedSize)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>压缩率:</span>
+                  <span>{((1 - nodeData.compressionInfo.ratio) * 100).toFixed(1)}%</span>
+                </div>
+                {nodeData.compressionInfo.forAABao && (
+                  <div className="mt-0.5 text-[9px] text-purple-400 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>AABao 优化</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div

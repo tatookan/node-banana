@@ -15,8 +15,8 @@ const MODEL_MAP: Record<ModelType, string> = {
 };
 
 // AABao API configuration
-// Use top suffix for VIP keys: https://api.aabao.vip or https://top.aabao.vip
-const AABAO_API_BASE = process.env.AABAO_API_BASE || "https://api.aabao.vip";
+// Recommended CloudFlare accelerated endpoint: https://cf-api.aabao.top
+const AABAO_API_BASE = process.env.AABAO_API_BASE || "https://cf-api.aabao.top";
 
 // Maximum number of input images allowed (Gemini API limit)
 const MAX_IMAGES = 14;
@@ -299,6 +299,12 @@ async function generateWithAabao(
       const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
       console.error(`[API:${requestId}] ❌ AABao API error: ${response.status}`);
       console.error(`[API:${requestId}] Error details:`, JSON.stringify(errorData));
+
+      // Special handling for Cloudflare timeout errors
+      if (response.status === 524) {
+        throw new Error(`AABao API 超时。服务响应太慢（>100秒），请尝试：\n1. 切换到 Google Vertex AI provider\n2. 降低分辨率（1K/2K 比 4K 更快）\n3. 减少输入图片数量\n4. 稍后重试`);
+      }
+
       throw new Error(`AABao API error (${response.status}): ${JSON.stringify(errorData)}`);
     }
 
@@ -407,7 +413,8 @@ export async function POST(request: NextRequest) {
         try {
           const { checkQuota } = await import('@/lib/quotaManager');
           const { calculateGenerationCost } = await import('@/utils/costCalculator');
-          const estimatedCost = calculateGenerationCost(model, resolution || '1K');
+          const providerValue = provider || "google";
+          const estimatedCost = calculateGenerationCost(model, resolution || '1K', providerValue);
           const quotaCheck = await checkQuota(userId, estimatedCost);
 
           if (!quotaCheck.allowed) {
@@ -472,13 +479,15 @@ export async function POST(request: NextRequest) {
       const userId = await getUserIdFromToken(token);
       if (userId) {
         const actualResolution: Resolution = resolution || "1K";
-        await recordImageGeneration(userId, model, actualResolution, 1);
+        const providerValue = provider || "google";
+        await recordImageGeneration(userId, model, actualResolution, 1, providerValue);
 
         // Update quota usage after successful generation
         try {
           const { updateQuotaUsage } = await import('@/lib/quotaManager');
           const { calculateGenerationCost } = await import('@/utils/costCalculator');
-          const actualCost = calculateGenerationCost(model, actualResolution);
+          const providerValue = provider || "google";
+          const actualCost = calculateGenerationCost(model, actualResolution, providerValue);
           await updateQuotaUsage(userId, actualCost);
           console.log(`[API:${requestId}] ✓ Quota updated:`, { userId, cost: actualCost });
         } catch (quotaError) {

@@ -243,6 +243,19 @@ export default function AdminPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Back to Home */}
+      <div className="mb-2">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          返回主页
+        </Link>
+      </div>
+
       {/* Time Range Selector */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

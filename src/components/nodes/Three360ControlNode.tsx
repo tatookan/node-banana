@@ -160,10 +160,21 @@ export function Three360ControlNode({ id, data, selected }: NodeProps<Three360Co
       minWidth={380}
     >
       {/* 输入Handle - 图片 */}
-      <Handle type="target" position={Position.Left} id="image" className="!top-1/2" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="image"
+        data-handletype="image"
+        className="!top-1/2"
+      />
 
       {/* 输出Handle - 文本（提示词） */}
-      <Handle type="source" position={Position.Right} id="text" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="text"
+        data-handletype="text"
+      />
 
       <div className="p-3 space-y-3">
         {/* 图片输入提示 */}

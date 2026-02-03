@@ -563,6 +563,8 @@ export function WorkflowCanvas() {
           targetHandleId = "image";
         } else if (nodeType === "nanoBanana" || nodeType === "viduGenerate") {
           targetHandleId = "image";
+        } else if (nodeType === "three360Control") {
+          targetHandleId = "image";
         } else if (nodeType === "imageInput") {
           sourceHandleIdForNewNode = "image";
         }
@@ -573,6 +575,8 @@ export function WorkflowCanvas() {
           if (nodeType === "llmGenerate") {
             sourceHandleIdForNewNode = "text";
           }
+        } else if (nodeType === "three360Control") {
+          sourceHandleIdForNewNode = "text";
         } else if (nodeType === "prompt") {
           sourceHandleIdForNewNode = "text";
         }

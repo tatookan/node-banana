@@ -1256,7 +1256,8 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 });
 
                 // Track cost
-                const generationCost = calculateGenerationCost(nodeData.model, nodeData.resolution);
+                const provider = nodeData.provider || "google";
+                const generationCost = calculateGenerationCost(nodeData.model, nodeData.resolution, provider);
                 get().addIncurredCost(generationCost);
 
                 // Auto-save to generations folder if configured
@@ -1984,7 +1985,8 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
           });
 
           // Track cost
-          const generationCost = calculateGenerationCost(nodeData.model, nodeData.resolution);
+          const provider = nodeData.provider || "google";
+          const generationCost = calculateGenerationCost(nodeData.model, nodeData.resolution, provider);
           get().addIncurredCost(generationCost);
 
           // Auto-save to generations folder if configured
