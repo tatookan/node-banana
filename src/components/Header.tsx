@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWorkflowStore, WorkflowFile } from "@/store/workflowStore";
 import { ProjectSetupModal } from "./ProjectSetupModal";
 import { CostIndicator } from "./CostIndicator";
+import { QuotaIndicator } from "./QuotaIndicator";
 import { StatsModal } from "./StatsModal";
 import ImageGallery from "./ImageGallery";
 import { useAuth } from "@/contexts/AuthContext";
@@ -435,6 +436,7 @@ export function Header() {
                   />
                 </svg>
               </button>
+              <QuotaIndicator />
               <span className="text-neutral-400">{user.username}</span>
               <span className="text-neutral-500">·</span>
             </>

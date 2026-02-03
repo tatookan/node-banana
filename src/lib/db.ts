@@ -135,6 +135,20 @@ export async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // Create user_quotas table for quota management
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_quotas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      quota_limit DECIMAL(10, 2) NOT NULL DEFAULT 0 COMMENT '配额上限（人民币）',
+      quota_used DECIMAL(10, 2) NOT NULL DEFAULT 0 COMMENT '已用配额（人民币）',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // Migrate existing api_usage table if needed
   await migrateApiUsageTable();
 

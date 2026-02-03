@@ -136,23 +136,34 @@ export async function GET(request: NextRequest) {
         COALESCE(SUM(a.images_generated), 0) as images,
         COALESCE(SUM(a.tokens_used), 0) as tokens,
         COALESCE(SUM(a.cost), 0) as cost,
-        MAX(a.created_at) as lastActivity
+        MAX(a.created_at) as lastActivity,
+        q.quota_limit,
+        q.quota_used
       FROM users u
       LEFT JOIN api_usage a ON u.id = a.user_id
-      GROUP BY u.id
+      LEFT JOIN user_quotas q ON u.id = q.user_id
+      GROUP BY u.id, q.quota_limit, q.quota_used
       ORDER BY cost DESC
     `);
 
-    const users = usersResult.map((r: any) => ({
-      userId: r.userId,
-      username: r.username,
-      email: r.email,
-      role: r.role || 'user',
-      images: r.images,
-      tokens: r.tokens,
-      cost: parseFloat(r.cost),
-      lastActivity: r.lastActivity ? r.lastActivity.toISOString() : null,
-    }));
+    const users = usersResult.map((r: any) => {
+      const quotaLimit = r.quota_limit ? parseFloat(r.quota_limit) : 0;
+      const quotaUsed = r.quota_used ? parseFloat(r.quota_used) : 0;
+      return {
+        userId: r.userId,
+        username: r.username,
+        email: r.email,
+        role: r.role || 'user',
+        images: r.images,
+        tokens: r.tokens,
+        cost: parseFloat(r.cost),
+        lastActivity: r.lastActivity ? r.lastActivity.toISOString() : null,
+        quotaLimit: quotaLimit || undefined,
+        quotaUsed: quotaUsed || undefined,
+        quotaRemaining: quotaLimit ? Math.max(0, quotaLimit - quotaUsed) : 0,
+        hasQuota: r.quota_limit !== null,
+      };
+    });
 
     // Currency breakdown (按货币分组统计)
     const currencyBreakdownResult = await query<any>(

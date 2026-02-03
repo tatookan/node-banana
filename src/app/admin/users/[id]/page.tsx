@@ -11,6 +11,12 @@ interface UserDetail {
   role: string;
   createdAt: string;
   lastLogin: string | null;
+  quota?: {
+    quotaLimit: number;
+    quotaUsed: number;
+    quotaRemaining: number;
+    hasLimit: boolean;
+  };
   totals: {
     images: number;
     tokens: number;
@@ -154,6 +160,53 @@ export default function UserDetailPage() {
         </div>
       </div>
 
+      {/* Quota Info */}
+      {userDetail.quota && userDetail.quota.hasLimit && (
+        <div className="bg-neutral-800 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-neutral-400 mb-3">配额信息</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">配额上限</span>
+              <span className="text-white font-medium">
+                ¥{userDetail.quota.quotaLimit.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">已用配额</span>
+              <span className="text-white font-medium">
+                ¥{userDetail.quota.quotaUsed.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">剩余配额</span>
+              <span className={`font-medium ${
+                userDetail.quota.quotaRemaining < 10 ? 'text-red-400' : 'text-green-400'
+              }`}>
+                ¥{userDetail.quota.quotaRemaining.toFixed(2)}
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="w-full h-2 bg-neutral-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all ${
+                    userDetail.quota.quotaRemaining < 10 ? 'bg-red-500' : 'bg-blue-500'
+                  }`}
+                  style={{
+                    width: `${Math.min(
+                      (userDetail.quota.quotaUsed / userDetail.quota.quotaLimit) * 100,
+                      100
+                    )}%`
+                  }}
+                />
+              </div>
+              <div className="text-xs text-neutral-500 mt-1 text-right">
+                {((userDetail.quota.quotaUsed / userDetail.quota.quotaLimit) * 100).toFixed(1)}% 已使用
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Totals */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-neutral-800 rounded-lg p-4">
@@ -175,8 +228,8 @@ export default function UserDetailPage() {
         <div className="bg-neutral-800 rounded-lg p-4">
           <h3 className="text-sm font-medium text-neutral-400 mb-3">按币种统计</h3>
           <div className="flex gap-6">
-            {userDetail.currencyBreakdown.map((cb) => (
-              <div key={cb.currency} className="flex items-center gap-3">
+            {userDetail.currencyBreakdown.map((cb, index) => (
+              <div key={`${cb.currency}-${index}`} className="flex items-center gap-3">
                 <div className="text-sm text-neutral-500">
                   {cb.currency === 'CNY' ? '人民币 (CNY)' : '美元 (USD)'}
                 </div>

@@ -6,8 +6,38 @@ import type { ModelType, Resolution, LLMProvider, LLMModelType, ViduModelType, V
 const USD_TO_RMB = 7;
 
 /**
+ * Calculate LLM cost in RMB based on provider and model
+ * This is exported for quota checking
+ * @param provider LLM provider (google or openai)
+ * @param model Model name
+ * @param tokens Number of tokens
+ * @returns Cost in RMB
+ */
+export function calculateLLMCost(
+  provider: LLMProvider,
+  model: string,
+  tokens: number
+): number {
+  // Price per 1M tokens in USD
+  let pricePerMillionUSD = 0;
+
+  if (provider === 'google') {
+    if (model.startsWith('gemini-2.5')) pricePerMillionUSD = 0.075;
+    else if (model.startsWith('gemini-3-flash')) pricePerMillionUSD = 0.075;
+    else if (model.startsWith('gemini-3-pro')) pricePerMillionUSD = 1.25;
+  } else if (provider === 'openai') {
+    if (model.startsWith('gpt-4.1-mini')) pricePerMillionUSD = 0.15;
+    else if (model.startsWith('gpt-4.1-nano')) pricePerMillionUSD = 0.15;
+  }
+
+  // Convert to RMB
+  const costUSD = (tokens / 1_000_000) * pricePerMillionUSD;
+  return costUSD * USD_TO_RMB;
+}
+
+/**
  * Get original USD cost for Gemini image generation (nano-banana)
- * The calculateGenerationCost returns RMB, so we convert back to USD
+ * The calculateGenerationCost returns RMB (now stores actual RMB values), so we convert back to USD
  */
 function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution): number {
   const costRMB = calculateGenerationCost(model, resolution);
@@ -16,7 +46,7 @@ function getGeminiOriginalCostUSD(model: ModelType, resolution: Resolution): num
 
 /**
  * Record Gemini image generation usage (nano-banana, nano-banana-pro)
- * These are USD-based services
+ * These are USD-based services, but we store RMB equivalent
  * @param userId User ID
  * @param model Model type (nano-banana or nano-banana-pro)
  * @param resolution Image resolution (1K, 2K, 4K)
@@ -29,10 +59,10 @@ export async function recordImageGeneration(
   count: number = 1
 ): Promise<void> {
   try {
-    // Get cost in RMB (from price table)
+    // Get cost in RMB (from price table - now stores actual RMB values)
     const costRMB = calculateGenerationCost(model, resolution) * count;
-    // Convert to original USD
-    const originalCostUSD = (costRMB / USD_TO_RMB);
+    // Convert to original USD (for record keeping)
+    const originalCostUSD = costRMB / USD_TO_RMB;
 
     await execute(
       `INSERT INTO api_usage (

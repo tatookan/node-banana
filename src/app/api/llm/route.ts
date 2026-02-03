@@ -277,6 +277,38 @@ export async function POST(request: NextRequest) {
         })()
       : prompt;
 
+    // Quota check: verify user has enough quota before making API call
+    const token = request.cookies.get('auth_token')?.value;
+    let userId: number | null = null;
+    if (token) {
+      userId = await getUserIdFromToken(token);
+      if (userId) {
+        try {
+          const { checkQuota } = await import('@/lib/quotaManager');
+          const { calculateLLMCost } = await import('@/lib/usageTracker');
+          // Estimate LLM cost based on maxTokens and actual model pricing
+          const estimatedTokens = maxTokens || 1024;
+          const estimatedCost = calculateLLMCost(provider, model, estimatedTokens);
+          const quotaCheck = await checkQuota(userId, estimatedCost);
+
+          if (!quotaCheck.allowed) {
+            logger.warn('api.llm', 'Quota exceeded', { requestId, quotaCheck });
+            return NextResponse.json<LLMGenerateResponse>(
+              {
+                success: false,
+                error: `配额已用尽。已用: ¥${quotaCheck.quotaUsed.toFixed(2)}，上限: ¥${quotaCheck.quotaLimit.toFixed(2)}。请联系管理员增加配额。`
+              },
+              { status: 403 }
+            );
+          }
+          logger.info('api.llm', 'Quota check passed', { requestId, estimatedCost });
+        } catch (quotaError) {
+          logger.error('api.llm', 'Quota check error', { requestId }, quotaError instanceof Error ? quotaError : undefined);
+          // Continue anyway if quota check fails
+        }
+      }
+    }
+
     let text: string;
 
     if (provider === "google") {
@@ -297,13 +329,24 @@ export async function POST(request: NextRequest) {
     });
 
     // Record usage statistics
-    const token = request.cookies.get('auth_token')?.value;
     if (token) {
       const userId = await getUserIdFromToken(token);
       if (userId) {
         // Estimate token count (rough approximation: ~4 chars per token)
         const estimatedTokens = Math.ceil((prompt.length + text.length) / 4);
         await recordLLMUsage(userId, provider, model, estimatedTokens);
+
+        // Update quota usage after successful generation
+        try {
+          const { updateQuotaUsage } = await import('@/lib/quotaManager');
+          const { calculateLLMCost } = await import('@/lib/usageTracker');
+          // Calculate actual cost based on model and token count
+          const actualCost = calculateLLMCost(provider, model, estimatedTokens);
+          await updateQuotaUsage(userId, actualCost);
+          logger.info('api.llm', 'Quota updated', { requestId, userId, tokens: estimatedTokens, cost: actualCost });
+        } catch (quotaError) {
+          logger.error('api.llm', 'Quota update error', { requestId }, quotaError instanceof Error ? quotaError : undefined);
+        }
       }
     }
 

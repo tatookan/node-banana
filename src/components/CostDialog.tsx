@@ -24,7 +24,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
   }, [onClose]);
 
   const handleReset = () => {
-    if (confirm("确定要将已产生费用重置为 $0.00 吗？")) {
+    if (confirm("确定要将已产生费用重置为 ¥0.00 吗？")) {
       resetIncurredCost();
     }
   };
@@ -96,7 +96,7 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
                 onClick={handleReset}
                 className="mt-3 text-xs text-neutral-400 hover:text-red-400 transition-colors"
               >
-                重置为 $0.00
+                重置为 ¥0.00
               </button>
             )}
           </div>
@@ -104,10 +104,10 @@ export function CostDialog({ predictedCost, incurredCost, onClose }: CostDialogP
           {/* Pricing Reference */}
           <div className="text-xs text-neutral-500 space-y-1">
             <p className="font-medium text-neutral-400">价格参考：</p>
-            <p>nano-banana-Flash（pro 1/4价格）：${PRICING["nano-banana"]["1K"]}/张</p>
-            <p>nano-banana-pro（满血版）1K/2K：${PRICING["nano-banana-pro"]["1K"]}/张</p>
-            <p>nano-banana-pro（满血版）4K：${PRICING["nano-banana-pro"]["4K"]}/张</p>
-            <p className="text-neutral-600 mt-2">所有价格以美元计</p>
+            <p>nano-banana-Flash：{formatCost(PRICING["nano-banana"]["1K"])}/张</p>
+            <p>nano-banana-pro 1K/2K：{formatCost(PRICING["nano-banana-pro"]["1K"])}/张</p>
+            <p>nano-banana-pro 4K：{formatCost(PRICING["nano-banana-pro"]["4K"])}/张</p>
+            <p className="text-neutral-600 mt-2">所有价格以人民币计</p>
           </div>
         </div>
       </div>

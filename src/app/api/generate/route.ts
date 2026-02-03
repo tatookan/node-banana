@@ -398,6 +398,41 @@ export async function POST(request: NextRequest) {
         })()
       : prompt;
 
+    // Quota check: verify user has enough quota before making API call
+    const token = request.cookies.get('auth_token')?.value;
+    let userId: number | null = null;
+    if (token) {
+      userId = await getUserIdFromToken(token);
+      if (userId) {
+        try {
+          const { checkQuota } = await import('@/lib/quotaManager');
+          const { calculateGenerationCost } = await import('@/utils/costCalculator');
+          const estimatedCost = calculateGenerationCost(model, resolution || '1K');
+          const quotaCheck = await checkQuota(userId, estimatedCost);
+
+          if (!quotaCheck.allowed) {
+            console.error(`[API:${requestId}] ❌ Quota exceeded:`, quotaCheck);
+            return NextResponse.json<GenerateResponse>(
+              {
+                success: false,
+                error: `配额已用尽。已用: ¥${quotaCheck.quotaUsed.toFixed(2)}，上限: ¥${quotaCheck.quotaLimit.toFixed(2)}。请联系管理员增加配额。`
+              },
+              { status: 403 }
+            );
+          }
+          console.log(`[API:${requestId}] ✓ Quota check passed:`, {
+            quotaLimit: quotaCheck.quotaLimit,
+            quotaUsed: quotaCheck.quotaUsed,
+            quotaRemaining: quotaCheck.quotaRemaining,
+            estimatedCost
+          });
+        } catch (quotaError) {
+          console.error(`[API:${requestId}] ⚠️ Quota check error:`, quotaError);
+          // Continue anyway if quota check fails
+        }
+      }
+    }
+
     // Route to appropriate provider
     let dataUrl: string;
     if (provider === "google") {
@@ -433,12 +468,23 @@ export async function POST(request: NextRequest) {
     console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
 
     // Upload to R2 in background (fire-and-forget, doesn't block response)
-    const token = request.cookies.get('auth_token')?.value;
     if (token) {
       const userId = await getUserIdFromToken(token);
       if (userId) {
         const actualResolution: Resolution = resolution || "1K";
         await recordImageGeneration(userId, model, actualResolution, 1);
+
+        // Update quota usage after successful generation
+        try {
+          const { updateQuotaUsage } = await import('@/lib/quotaManager');
+          const { calculateGenerationCost } = await import('@/utils/costCalculator');
+          const actualCost = calculateGenerationCost(model, actualResolution);
+          await updateQuotaUsage(userId, actualCost);
+          console.log(`[API:${requestId}] ✓ Quota updated:`, { userId, cost: actualCost });
+        } catch (quotaError) {
+          console.error(`[API:${requestId}] ⚠️ Quota update error:`, quotaError);
+        }
+
         uploadGeneratedImageInBackground(userId, dataUrl, {
           prompt,
           model,

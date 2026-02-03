@@ -14,6 +14,12 @@ interface UserDetailResponse {
     role: string;
     createdAt: string;
     lastLogin: string | null;
+    quota?: {
+      quotaLimit: number;
+      quotaUsed: number;
+      quotaRemaining: number;
+      hasLimit: boolean;
+    };
     totals: {
       images: number;
       tokens: number;
@@ -162,6 +168,24 @@ export async function GET(
       [userId]
     );
 
+    // Get user quota info
+    const quotaResult = await query<any>(
+      'SELECT quota_limit, quota_used FROM user_quotas WHERE user_id = ?',
+      [userId]
+    );
+
+    let quota = undefined;
+    if (quotaResult.length > 0) {
+      const quotaLimit = parseFloat(quotaResult[0].quota_limit);
+      const quotaUsed = parseFloat(quotaResult[0].quota_used);
+      quota = {
+        quotaLimit,
+        quotaUsed,
+        quotaRemaining: Math.max(0, quotaLimit - quotaUsed),
+        hasLimit: true,
+      };
+    }
+
     return NextResponse.json<UserDetailResponse>({
       success: true,
       user: {
@@ -171,6 +195,7 @@ export async function GET(
         role: user.role || 'user',
         createdAt: user.created_at?.toISOString() || '',
         lastLogin: user.last_login?.toISOString() || null,
+        quota,
         totals: {
           images: totalsResult[0].images,
           tokens: totalsResult[0].tokens,

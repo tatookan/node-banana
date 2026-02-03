@@ -122,7 +122,7 @@ export function StatsModal({ isOpen, onClose }: Props) {
   };
 
   const formatCost = (cost: number) => {
-    return `$${cost.toFixed(2)}`;
+    return `¥${cost.toFixed(2)}`;
   };
 
   const getMaxValue = (data: TimeStats[], type: "images" | "tokens") => {

@@ -180,6 +180,37 @@ export async function POST(request: NextRequest) {
     viduPayload.callback_url = getCallbackUrl();
     console.log(`[VIDU:${requestId}]   Callback URL: ${viduPayload.callback_url}`);
 
+    // Quota check: verify user has enough quota before making API call
+    const actualResolution = resolution || '1080p';
+    try {
+      const { checkQuota } = await import('@/lib/quotaManager');
+      const { calculateViduCost } = await import('@/utils/costCalculator');
+      // calculateViduCost returns RMB price directly (credits × 0.03125)
+      const hasImages = imageCount > 0;
+      const estimatedCost = calculateViduCost(model, actualResolution, hasImages);
+      const quotaCheck = await checkQuota(userId, estimatedCost);
+
+      if (!quotaCheck.allowed) {
+        console.error(`[VIDU:${requestId}] ❌ Quota exceeded:`, quotaCheck);
+        return NextResponse.json<ViduGenerateResponse>(
+          {
+            success: false,
+            error: `配额已用尽。已用: ¥${quotaCheck.quotaUsed.toFixed(2)}，上限: ¥${quotaCheck.quotaLimit.toFixed(2)}。请联系管理员增加配额。`
+          },
+          { status: 403 }
+        );
+      }
+      console.log(`[VIDU:${requestId}] ✓ Quota check passed:`, {
+        quotaLimit: quotaCheck.quotaLimit,
+        quotaUsed: quotaCheck.quotaUsed,
+        quotaRemaining: quotaCheck.quotaRemaining,
+        estimatedCost
+      });
+    } catch (quotaError) {
+      console.error(`[VIDU:${requestId}] ⚠️ Quota check error:`, quotaError);
+      // Continue anyway if quota check fails
+    }
+
     console.log(`[VIDU:${requestId}] Calling VIDU API: ${VIDU_API_BASE_URL}/reference2image`);
 
     const response = await fetch(`${VIDU_API_BASE_URL}/reference2image`, {
@@ -219,6 +250,20 @@ export async function POST(request: NextRequest) {
       console.log(`[VIDU:${requestId}] ✓ UserId stored for task`);
     } catch (storeError) {
       console.error(`[VIDU:${requestId}] Failed to store userId:`, storeError);
+      // Don't fail the request for this
+    }
+
+    // Deduct quota usage immediately (VIDU is async, but we deduct upfront)
+    try {
+      const { updateQuotaUsage } = await import('@/lib/quotaManager');
+      const { calculateViduCost } = await import('@/utils/costCalculator');
+      const hasImages = imageCount > 0;
+      // calculateViduCost returns RMB price directly (credits × 0.03125)
+      const actualCost = calculateViduCost(model, actualResolution, hasImages);
+      await updateQuotaUsage(userId, actualCost);
+      console.log(`[VIDU:${requestId}] ✓ Quota deducted:`, { userId, cost: actualCost });
+    } catch (quotaError) {
+      console.error(`[VIDU:${requestId}] Failed to deduct quota:`, quotaError);
       // Don't fail the request for this
     }
 

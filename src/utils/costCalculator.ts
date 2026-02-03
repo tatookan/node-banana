@@ -50,17 +50,18 @@ export function calculateViduCost(
 }
 
 // Pricing in RMB per image (Gemini API)
-// Converted from USD at approximately 1 USD = 7 RMB
+// Converted from USD: $0.027 → ¥0.19, $0.094 → ¥0.66, $0.168 → ¥1.18
+// 注意：以下值为人民币价格
 export const PRICING = {
   "nano-banana": {
-    "1K": 0.27,
-    "2K": 0.27,
-    "4K": 0.27,
+    "1K": 0.19,   // $0.027 × 7
+    "2K": 0.19,   // $0.027 × 7
+    "4K": 0.19,   // $0.027 × 7
   },
   "nano-banana-pro": {
-    "1K": 0.94,
-    "2K": 0.94,
-    "4K": 1.68,
+    "1K": 0.66,   // $0.094 × 7
+    "2K": 0.66,   // $0.094 × 7
+    "4K": 1.18,   // $0.168 × 7
   },
 } as const;
 
