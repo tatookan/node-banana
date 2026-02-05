@@ -6,6 +6,7 @@ import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { ImageInputNodeData } from "@/types";
 import { compressImage, formatFileSize, getAABaoTargetSize } from "@/utils/imageCompressor";
+import { useImageCompression, cleanupCompressionWorker } from "@/hooks/useImageCompression";
 
 type ImageInputNodeType = Node<ImageInputNodeData, "imageInput">;
 
@@ -14,7 +15,23 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isCompressing, setIsCompressing] = useState(false);
+
+  // 使用 Web Worker 进行压缩（如果支持）
+  const { compressImage: compressWithWorker, isCompressing: isCompressingInWorker, progress, isWorkerSupported } = useImageCompression();
+
+  // 降级状态：当不支持 Worker 时使用传统压缩
+  const [isLegacyCompressing, setIsLegacyCompressing] = useState(false);
+
+  // 统一的压缩状态
+  const isCompressing = isCompressingInWorker || isLegacyCompressing;
+
+  // 统一的状态设置函数
+  const setIsCompressing = (value: boolean) => {
+    if (!isWorkerSupported) {
+      setIsLegacyCompressing(value);
+    }
+    // Worker 状态由 hook 自动管理
+  };
 
   // 检测下游是否使用 AABao provider
   const hasDownstreamAABaoNode = useCallback((nodeId: string): boolean => {
@@ -44,6 +61,46 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
     return false;
   }, []);
 
+  // 清理 Worker 组件卸载时
+  useEffect(() => {
+    return () => {
+      if (isWorkerSupported) {
+        const workerRef = useRef<Worker | null>(null);
+        cleanupCompressionWorker(workerRef);
+      }
+    };
+  }, [isWorkerSupported]);
+
+  // 辅助函数：加载图片并获取尺寸
+  const loadImageData = useCallback((file: File): Promise<{ dataUrl: string; width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (!e.target?.result) {
+          reject(new Error("无法读取文件"));
+          return;
+        }
+
+        const dataUrl = e.target.result as string;
+        const img = new Image();
+
+        img.onload = () => {
+          resolve({
+            dataUrl,
+            width: img.width,
+            height: img.height,
+          });
+        };
+
+        img.onerror = () => reject(new Error("无法加载图片"));
+        img.src = dataUrl;
+      };
+
+      reader.onerror = () => reject(new Error("文件读取失败"));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -69,8 +126,34 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
 
         console.log(`[ImageInput] 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略，目标: ${formatFileSize(maxSize)}`);
 
-        // 如果文件过大，自动压缩
-        const result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+        let result;
+
+        // 优先使用 Web Worker（如果支持）
+        if (isWorkerSupported && file.size > 1024 * 1024) { // 只对大于 1MB 的文件使用 Worker
+          console.log('[ImageInput] 使用 Web Worker 进行压缩');
+          // 先加载图片获取尺寸
+          const { dataUrl, width, height } = await loadImageData(file);
+
+          // 使用 Worker 压缩
+          result = await compressWithWorker(
+            dataUrl,
+            width,
+            height,
+            file.type,
+            {
+              maxSizeBytes: maxSize,
+              initialQuality,
+            }
+          );
+        } else {
+          // 不支持 Worker 或文件太小，使用主线程压缩
+          if (!isWorkerSupported) {
+            console.log('[ImageInput] 浏览器不支持 Worker，使用主线程压缩');
+            setIsLegacyCompressing(true);
+          }
+          result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+          setIsLegacyCompressing(false);
+        }
 
         // 检查压缩后的文件大小
         if (result.compressedSize > maxSize) {
@@ -96,34 +179,30 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
           );
         }
 
-        const img = new Image();
-        img.onload = () => {
-          updateNodeData(id, {
-            image: result.dataUrl,
-            filename: file.name,
-            dimensions: { width: img.width, height: img.height },
-            compressionInfo: {
-              originalSize: result.originalSize,
-              compressedSize: result.compressedSize,
-              ratio: result.compressionRatio,
-              method: result.method,
-              forAABao: useAABaoStrategy,
-            },
-          });
-          setIsCompressing(false);
-        };
-        img.onerror = () => {
-          alert("无法加载图片");
-          setIsCompressing(false);
-        };
-        img.src = result.dataUrl;
+        // 使用压缩结果的尺寸（不再需要重新加载图片）
+        const finalDimensions = result.finalDimensions || result.originalDimensions;
+
+        updateNodeData(id, {
+          image: result.dataUrl,
+          filename: file.name,
+          dimensions: finalDimensions,
+          compressionInfo: {
+            originalSize: result.originalSize,
+            compressedSize: result.compressedSize,
+            ratio: result.compressionRatio,
+            method: result.method,
+            forAABao: useAABaoStrategy,
+          },
+        });
+        setIsCompressing(false);
       } catch (error) {
         console.error("图片处理失败:", error);
         alert("图片处理失败，请重试");
         setIsCompressing(false);
+        setIsLegacyCompressing(false);
       }
     },
-    [id, updateNodeData, hasDownstreamAABaoNode]
+    [id, updateNodeData, hasDownstreamAABaoNode, isWorkerSupported, compressWithWorker, loadImageData]
   );
 
   const handleDrop = useCallback(
@@ -189,7 +268,30 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
 
             console.log(`[ImageInput] 粘贴图片 - 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略`);
 
-            const result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+            let result;
+
+            // 优先使用 Web Worker（如果支持）
+            if (isWorkerSupported && file.size > 1024 * 1024) {
+              console.log('[ImageInput] 粘贴图片使用 Web Worker 进行压缩');
+              const { dataUrl, width, height } = await loadImageData(file);
+
+              result = await compressWithWorker(
+                dataUrl,
+                width,
+                height,
+                file.type,
+                {
+                  maxSizeBytes: maxSize,
+                  initialQuality,
+                }
+              );
+            } else {
+              if (!isWorkerSupported) {
+                setIsLegacyCompressing(true);
+              }
+              result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+              setIsLegacyCompressing(false);
+            }
 
             if (result.compressedSize > maxSize) {
               alert(
@@ -209,38 +311,34 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
               );
             }
 
-            const img = new Image();
-            img.onload = () => {
-              updateNodeData(id, {
-                image: result.dataUrl,
-                filename: `pasted-image-${Date.now()}.png`,
-                dimensions: { width: img.width, height: img.height },
-                compressionInfo: {
-                  originalSize: result.originalSize,
-                  compressedSize: result.compressedSize,
-                  ratio: result.compressionRatio,
-                  method: result.method,
-                  forAABao: useAABaoStrategy,
-                },
-              });
-              setIsCompressing(false);
-            };
-            img.onerror = () => {
-              alert("无法加载剪贴板图片");
-              setIsCompressing(false);
-            };
-            img.src = result.dataUrl;
+            // 使用压缩结果的尺寸
+            const finalDimensions = result.finalDimensions || result.originalDimensions;
+
+            updateNodeData(id, {
+              image: result.dataUrl,
+              filename: `pasted-image-${Date.now()}.png`,
+              dimensions: finalDimensions,
+              compressionInfo: {
+                originalSize: result.originalSize,
+                compressedSize: result.compressedSize,
+                ratio: result.compressionRatio,
+                method: result.method,
+                forAABao: useAABaoStrategy,
+              },
+            });
+            setIsCompressing(false);
           } catch (error) {
             console.error("剪贴板图片处理失败:", error);
             alert("剪贴板图片处理失败，请重试");
             setIsCompressing(false);
+            setIsLegacyCompressing(false);
           }
 
           break; // 只处理第一个图片
         }
       }
     },
-    [id, nodeData.image, updateNodeData, hasDownstreamAABaoNode]
+    [id, nodeData.image, updateNodeData, hasDownstreamAABaoNode, isWorkerSupported, compressWithWorker, loadImageData]
   );
 
   // 添加/移除 paste 事件监听
@@ -353,7 +451,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
               <span className="text-[10px] text-neutral-400 mt-1">
-                压缩中...
+                {progress ? `${progress.step} ${progress.percent}%` : '压缩中...'}
               </span>
             </>
           ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useState, useEffect, useRef } from "react";
+import { ReactNode, useCallback, useState, useEffect, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, OnResize, useReactFlow } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
@@ -24,7 +24,33 @@ interface BaseNodeProps {
   minHeight?: number;
 }
 
-export function BaseNode({
+/**
+ * BaseNode props 比较函数
+ * 只有当关键属性真正改变时才重新渲染
+ */
+function areBaseNodePropsEqual(prev: BaseNodeProps, next: BaseNodeProps): boolean {
+  return (
+    prev.id === next.id &&
+    prev.selected === next.selected &&
+    prev.isExecuting === next.isExecuting &&
+    prev.hasError === next.hasError &&
+    prev.title === next.title &&
+    prev.customTitle === next.customTitle &&
+    prev.comment === next.comment &&
+    prev.className === next.className &&
+    prev.minWidth === next.minWidth &&
+    prev.minHeight === next.minHeight &&
+    // 函数引用通常不变，但如果需要可以比较
+    prev.onCustomTitleChange === next.onCustomTitleChange &&
+    prev.onCommentChange === next.onCommentChange &&
+    prev.onExpand === next.onExpand &&
+    prev.onRun === next.onRun
+    // 注意：children 不参与比较，因为它可能会每次渲染时都是新的引用
+    // 但这是可以接受的，因为 children 内容改变时我们确实需要重渲染
+  );
+}
+
+function BaseNode({
   id,
   title,
   customTitle,
@@ -357,3 +383,9 @@ export function BaseNode({
     </>
   );
 }
+
+// 使用 React.memo 优化，避免不必要的重渲染
+const MemoizedBaseNode = memo(BaseNode, areBaseNodePropsEqual);
+
+// 导出 memo 版本作为 BaseNode（保持向后兼容）
+export { MemoizedBaseNode as BaseNode };
