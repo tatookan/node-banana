@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate username format (allow Chinese, letters, numbers, underscore, hyphen)
+    if (!/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/.test(username)) {
+      return NextResponse.json(
+        { error: '用户名只能包含中文、字母、数字、下划线和连字符' },
+        { status: 400 }
+      );
+    }
+
     // Validate password length
     if (password.length < 6) {
       return NextResponse.json(

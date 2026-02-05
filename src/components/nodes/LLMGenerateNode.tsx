@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { Handle, Position, NodeProps, Node, useReactFlow } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { useUpdateNodeData, useRegenerateNode, useIsRunning } from "@/store/selectors";
 import { LLMGenerateNodeData, LLMProvider, LLMModelType } from "@/types";
 import { cacheManager } from "@/lib/cacheManager";
 import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
@@ -29,7 +30,8 @@ type LLMGenerateNodeType = Node<LLMGenerateNodeData, "llmGenerate">;
 
 export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNodeType>) {
   const nodeData = data;
-  const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
+  // 使用选择器 hooks 优化
+  const updateNodeData = useUpdateNodeData();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { setNodes } = useReactFlow();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -104,8 +106,9 @@ export function LLMGenerateNode({ id, data, selected }: NodeProps<LLMGenerateNod
     [id, updateNodeData]
   );
 
-  const regenerateNode = useWorkflowStore((state) => state.regenerateNode);
-  const isRunning = useWorkflowStore((state) => state.isRunning);
+  // 使用选择器 hooks 优化
+  const regenerateNode = useRegenerateNode();
+  const isRunning = useIsRunning();
 
   const handleRegenerate = useCallback(() => {
     regenerateNode(id);

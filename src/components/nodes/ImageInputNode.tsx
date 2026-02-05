@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { Handle, Position, NodeProps, Node } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
@@ -158,6 +158,105 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
     });
   }, [id, updateNodeData]);
 
+  // 处理剪贴板粘贴
+  const handlePaste = useCallback(
+    async (e: ClipboardEvent) => {
+      // 只在没有图片时才响应粘贴，避免覆盖已有图片
+      if (nodeData.image) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          setIsCompressing(true);
+
+          try {
+            // 检测是否需要 AABao 压缩策略
+            const useAABaoStrategy = hasDownstreamAABaoNode(id);
+
+            // 根据策略选择不同的压缩目标
+            const maxSize = useAABaoStrategy
+              ? getAABaoTargetSize(file.size)
+              : 10 * 1024 * 1024;
+
+            const initialQuality = useAABaoStrategy ? 0.92 : 0.95;
+
+            console.log(`[ImageInput] 粘贴图片 - 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略`);
+
+            const result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+
+            if (result.compressedSize > maxSize) {
+              alert(
+                `图片过大且无法压缩到目标大小以下。\n` +
+                `原始大小: ${formatFileSize(result.originalSize)}\n` +
+                `压缩后大小: ${formatFileSize(result.compressedSize)}`
+              );
+              setIsCompressing(false);
+              return;
+            }
+
+            if (result.wasCompressed) {
+              console.log(
+                `[图片粘贴] 剪贴板图片\n` +
+                `方法: ${result.method}\n` +
+                `大小: ${formatFileSize(result.originalSize)} → ${formatFileSize(result.compressedSize)}`
+              );
+            }
+
+            const img = new Image();
+            img.onload = () => {
+              updateNodeData(id, {
+                image: result.dataUrl,
+                filename: `pasted-image-${Date.now()}.png`,
+                dimensions: { width: img.width, height: img.height },
+                compressionInfo: {
+                  originalSize: result.originalSize,
+                  compressedSize: result.compressedSize,
+                  ratio: result.compressionRatio,
+                  method: result.method,
+                  forAABao: useAABaoStrategy,
+                },
+              });
+              setIsCompressing(false);
+            };
+            img.onerror = () => {
+              alert("无法加载剪贴板图片");
+              setIsCompressing(false);
+            };
+            img.src = result.dataUrl;
+          } catch (error) {
+            console.error("剪贴板图片处理失败:", error);
+            alert("剪贴板图片处理失败，请重试");
+            setIsCompressing(false);
+          }
+
+          break; // 只处理第一个图片
+        }
+      }
+    },
+    [id, nodeData.image, updateNodeData, hasDownstreamAABaoNode]
+  );
+
+  // 添加/移除 paste 事件监听
+  useEffect(() => {
+    if (!selected) return; // 只在选中时响应粘贴
+
+    const handlePasteEvent = (e: Event) => {
+      handlePaste(e as ClipboardEvent);
+    };
+
+    document.addEventListener("paste", handlePasteEvent);
+    return () => {
+      document.removeEventListener("paste", handlePasteEvent);
+    };
+  }, [selected, handlePaste]);
+
   return (
     <BaseNode
       id={id}
@@ -263,8 +362,13 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
               <span className="text-[10px] text-neutral-400 mt-1">
-                Drop or click
+                粘贴 / 拖拽 / 点击
               </span>
+              {selected && (
+                <span className="text-[9px] text-neutral-600 mt-0.5">
+                  (选中节点后按 Ctrl+V)
+                </span>
+              )}
             </>
           )}
         </div>

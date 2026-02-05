@@ -387,6 +387,7 @@ const saveSaveConfig = (config: WorkflowSaveConfig) => {
 };
 
 export { generateWorkflowId };
+export type { WorkflowStore };
 
 export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   nodes: [],

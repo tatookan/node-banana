@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 interface UserDetail {
   id: number;
@@ -51,10 +52,16 @@ export default function UserDetailPage() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
+  const toast = useToast();
 
   const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 编辑用户名相关状态
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     fetchUserDetail();
@@ -78,6 +85,56 @@ export default function UserDetailPage() {
       setError("网络错误");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 开始编辑用户名
+  const handleStartEditUsername = () => {
+    setNewUsername(userDetail?.username || "");
+    setIsEditingUsername(true);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setIsEditingUsername(false);
+    setNewUsername("");
+  };
+
+  // 保存用户名
+  const handleSaveUsername = async () => {
+    if (!newUsername.trim()) {
+      toast.show("用户名不能为空", "error");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username: newUsername.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 更新本地状态
+        if (userDetail && data.user) {
+          setUserDetail({
+            ...userDetail,
+            username: data.user.username,
+          });
+        }
+        toast.show("用户名修改成功", "success");
+        setIsEditingUsername(false);
+      } else {
+        toast.show(data.error || "修改失败", "error");
+      }
+    } catch {
+      toast.show("网络错误", "error");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -131,9 +188,58 @@ export default function UserDetailPage() {
       {/* User Info Card */}
       <div className="bg-neutral-800 rounded-lg p-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-white">{userDetail.username}</h2>
-            <p className="text-sm text-neutral-400">{userDetail.email}</p>
+          <div className="flex-1">
+            {isEditingUsername ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  disabled={isUpdating}
+                  className="bg-neutral-700 text-white px-3 py-1 rounded border border-neutral-600 focus:border-blue-500 focus:outline-none"
+                  placeholder="输入新用户名"
+                  maxLength={20}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveUsername();
+                    } else if (e.key === "Escape") {
+                      handleCancelEdit();
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveUsername}
+                  disabled={isUpdating}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdating ? "保存中..." : "保存"}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={isUpdating}
+                  className="px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold text-white">{userDetail.username}</h2>
+                  <button
+                    onClick={handleStartEditUsername}
+                    className="text-neutral-500 hover:text-blue-400 transition-colors"
+                    title="编辑用户名"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732a2.5 2.5 0 013.536 0z" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-sm text-neutral-400">{userDetail.email}</p>
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm text-neutral-500">角色</div>

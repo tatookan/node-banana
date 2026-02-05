@@ -189,6 +189,7 @@ function ImageGallery() {
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [previewImage, setPreviewImage] = useState<CloudImage | null>(null);
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Refs for avoiding stale closures
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -474,6 +475,30 @@ function ImageGallery() {
     });
   }, []);
 
+  // Copy prompt to clipboard
+  const handleCopyPrompt = useCallback(async (prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (error) {
+      console.error('[ImageGallery] Failed to copy prompt:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = prompt;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch (fallbackError) {
+        console.error('[ImageGallery] Fallback copy also failed:', fallbackError);
+      }
+      document.body.removeChild(textArea);
+    }
+  }, []);
+
   // Memoized handlers
   const handleFilterChange = useCallback((type: FilterType) => {
     debouncedSetFilter(type);
@@ -674,6 +699,34 @@ function ImageGallery() {
 
             {/* Actions */}
             <div className="mt-3 flex items-center justify-center gap-2">
+              {/* Copy prompt button */}
+              {previewImage.prompt && (
+                <button
+                  onClick={() => handleCopyPrompt(previewImage.prompt || "")}
+                  className={`flex items-center gap-2 px-4 py-1.5 rounded text-xs font-medium transition-colors ${
+                    copySuccess
+                      ? 'bg-green-600 text-white'
+                      : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
+                  }`}
+                  title="复制提示词"
+                >
+                  {copySuccess ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>已复制</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span>复制提示词</span>
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => {
                   toggleFavorite(previewImage.imageKey, previewImage.isFavorite);

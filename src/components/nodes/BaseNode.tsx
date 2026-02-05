@@ -4,6 +4,7 @@ import { ReactNode, useCallback, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, OnResize, useReactFlow } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { useCurrentNodeId, useGroups, useNodes } from "@/store/selectors";
 
 interface BaseNodeProps {
   id: string;
@@ -40,9 +41,10 @@ export function BaseNode({
   minWidth = 180,
   minHeight = 100,
 }: BaseNodeProps) {
-  const currentNodeId = useWorkflowStore((state) => state.currentNodeId);
-  const groups = useWorkflowStore((state) => state.groups);
-  const nodes = useWorkflowStore((state) => state.nodes);
+  // 使用选择器 hooks 优化：每个 hook 只订阅它需要的状态
+  const currentNodeId = useCurrentNodeId();
+  const groups = useGroups();
+  const nodes = useNodes();
   const isCurrentlyExecuting = currentNodeId === id;
   const { getNodes, setNodes } = useReactFlow();
 

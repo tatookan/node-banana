@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
@@ -225,6 +225,121 @@ export async function GET(
     console.error('[API:AdminUserDetail] Error:', error);
     return NextResponse.json<UserDetailResponse>(
       { success: false, error: '获取用户详情失败' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/admin/users/[id]
+ * 更新用户信息（管理员功能）
+ * 目前支持更新：username
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // 权限验证 - 只有管理员可以修改用户信息
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { id: userIdStr } = await params;
+  const userId = parseInt(userIdStr);
+  if (isNaN(userId)) {
+    return NextResponse.json(
+      { success: false, error: '无效的用户ID' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // 解析请求体
+    const body = await request.json();
+    const { username } = body;
+
+    // 验证必需字段
+    if (!username || typeof username !== 'string') {
+      return NextResponse.json(
+        { success: false, error: '用户名不能为空' },
+        { status: 400 }
+      );
+    }
+
+    // 验证用户名长度（与注册验证一致：3-20字符）
+    if (username.length < 3 || username.length > 20) {
+      return NextResponse.json(
+        { success: false, error: '用户名长度必须在3-20个字符之间' },
+        { status: 400 }
+      );
+    }
+
+    // 验证用户名格式（允许中文、字母、数字、下划线、连字符）
+    if (!/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/.test(username)) {
+      return NextResponse.json(
+        { success: false, error: '用户名只能包含中文、字母、数字、下划线和连字符' },
+        { status: 400 }
+      );
+    }
+
+    // 检查用户名是否已存在（排除当前用户）
+    const existingUsers = await query<any>(
+      'SELECT id FROM users WHERE username = ? AND id != ?',
+      [username, userId]
+    );
+
+    if (existingUsers.length > 0) {
+      return NextResponse.json(
+        { success: false, error: '用户名已存在' },
+        { status: 409 }
+      );
+    }
+
+    // 更新用户名
+    await execute(
+      'UPDATE users SET username = ? WHERE id = ?',
+      [username, userId]
+    );
+
+    // 获取更新后的用户信息
+    const updatedUsers = await query<any>(
+      'SELECT id, username, email, role, created_at, last_login FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (updatedUsers.length === 0) {
+      return NextResponse.json(
+        { success: false, error: '用户不存在' },
+        { status: 404 }
+      );
+    }
+
+    const updatedUser = updatedUsers[0];
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role || 'user',
+        createdAt: updatedUser.created_at?.toISOString() || '',
+        lastLogin: updatedUser.last_login?.toISOString() || null,
+      },
+    });
+  } catch (error: any) {
+    // 处理数据库唯一性约束错误
+    if (error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json(
+        { success: false, error: '用户名已存在' },
+        { status: 409 }
+      );
+    }
+
+    console.error('[API:AdminUpdateUser] Error:', error);
+    return NextResponse.json(
+      { success: false, error: '更新用户信息失败' },
       { status: 500 }
     );
   }

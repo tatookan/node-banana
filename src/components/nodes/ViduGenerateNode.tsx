@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { Handle, Position, NodeProps, Node, useReactFlow } from "@xyflow/react";
 import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { useUpdateNodeData, useGenerationsPath, useOpenImagePreview, useNodes, useEdges } from "@/store/selectors";
 import { ViduGenerateNodeData, ViduAspectRatio, ViduResolution, ViduModelType, ViduTaskState } from "@/types";
 
 // VIDU Aspect Ratios - viduq2 supports all
@@ -22,11 +23,12 @@ type ViduGenerateNodeType = Node<ViduGenerateNodeData, "viduGenerate">;
 
 export function ViduGenerateNode({ id, data, selected }: NodeProps<ViduGenerateNodeType>) {
   const nodeData = data;
-  const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
-  const generationsPath = useWorkflowStore((state) => state.generationsPath);
-  const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
-  const edges = useWorkflowStore((state) => state.edges);
-  const nodes = useWorkflowStore((state) => state.nodes);
+  // 使用选择器 hooks 优化：每个 hook 只订阅它需要的状态
+  const updateNodeData = useUpdateNodeData();
+  const generationsPath = useGenerationsPath();
+  const openImagePreview = useOpenImagePreview();
+  const nodes = useNodes();
+  const edges = useEdges();
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { setNodes } = useReactFlow();

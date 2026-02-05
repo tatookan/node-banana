@@ -7,6 +7,7 @@ import { useWorkflowStore, saveNanoBananaDefaults } from "@/store/workflowStore"
 import { NanoBananaNodeData, AspectRatio, Resolution, ModelType, ImageProvider, ImageInputNodeData, AnnotationNodeData } from "@/types";
 import { cacheManager } from "@/lib/cacheManager";
 import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
+import { useImage } from "@/hooks/useImageLoader";
 
 // All 10 aspect ratios supported by both models
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
@@ -28,15 +29,26 @@ type NanoBananaNodeType = Node<NanoBananaNodeData, "nanoBanana">;
 
 export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeType>) {
   const nodeData = data;
+  // 使用独立的选择器优化：每个订阅只订阅它需要的状态
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const generationsPath = useWorkflowStore((state) => state.generationsPath);
   const openImagePreview = useWorkflowStore((state) => state.openImagePreview);
   const edges = useWorkflowStore((state) => state.edges);
   const nodes = useWorkflowStore((state) => state.nodes);
+  const regenerateNode = useWorkflowStore((state) => state.regenerateNode);
+  const isRunning = useWorkflowStore((state) => state.isRunning);
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { setNodes } = useReactFlow();
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // 使用智能图片加载 - 支持从 IndexedDB 缓存加载，减少内存占用
+  // 优先使用 IndexedDB 缓存，fallback 到 Base64 或服务器加载
+  const { image: loadedOutputImage, isLoading: isLoadingOutput } = useImage(
+    nodeData.outputImage,
+    nodeData.outputImageRef,
+    generationsPath || undefined
+  );
 
   // Get connected source nodes with their images
   const connectedInputImages = useMemo(() => {
@@ -158,9 +170,6 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   const handleClearImage = useCallback(() => {
     updateNodeData(id, { outputImage: null, status: "idle", error: null });
   }, [id, updateNodeData]);
-
-  const regenerateNode = useWorkflowStore((state) => state.regenerateNode);
-  const isRunning = useWorkflowStore((state) => state.isRunning);
 
   const handleRegenerate = useCallback(() => {
     regenerateNode(id);
@@ -312,14 +321,14 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
         )}
 
         {/* Preview area */}
-        {nodeData.outputImage ? (
+        {loadedOutputImage || nodeData.outputImage ? (
           <>
             <div className="relative w-full flex-1 min-h-0">
               <img
-                src={nodeData.outputImage}
+                src={(loadedOutputImage || nodeData.outputImage) ?? undefined}
                 alt="Generated"
                 className="w-full h-full object-contain rounded cursor-pointer hover:opacity-90 transition-opacity"
-                onDoubleClick={() => openImagePreview(nodeData.outputImage!, "生成的图片")}
+                onDoubleClick={() => openImagePreview((loadedOutputImage || nodeData.outputImage)!, "生成的图片")}
                 title="双击查看大图"
               />
               {/* Loading overlay for generation */}

@@ -18,6 +18,17 @@ import "@xyflow/react/dist/style.css";
 
 import { useWorkflowStore, WorkflowFile } from "@/store/workflowStore";
 import {
+  useNodes,
+  useEdges,
+  useGroups,
+  useUpdateNodeData,
+  useAddNode,
+  useGetNodeById,
+  useSetShowQuickstart,
+  useCloseImagePreview,
+  useOpenImagePreview,
+} from "@/store/selectors";
+import {
   ImageInputNode,
   AnnotationNode,
   PromptNode,
@@ -237,8 +248,19 @@ const findScrollableAncestor = (target: HTMLElement, deltaX: number, deltaY: num
 };
 
 export function WorkflowCanvas() {
-  const { nodes, edges, groups, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, loadWorkflow, getNodeById, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, setShowQuickstart, imagePreviewSrc, imagePreviewAlt, closeImagePreview } =
+  // 使用选择器 hooks 优化常用的状态订阅
+  const nodes = useNodes();
+  const edges = useEdges();
+  const groups = useGroups();
+  const updateNodeData = useUpdateNodeData();
+  const getNodeById = useGetNodeById();
+  const setShowQuickstart = useSetShowQuickstart();
+  const closeImagePreview = useCloseImagePreview();
+
+  // 其他没有选择器的值保持原样
+  const { onNodesChange, onEdgesChange, onConnect, addNode, loadWorkflow, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, imagePreviewSrc, imagePreviewAlt } =
     useWorkflowStore();
+
   const { screenToFlowPosition, getViewport, zoomIn, zoomOut, setViewport } = useReactFlow();
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropType, setDropType] = useState<"image" | "workflow" | "node" | null>(null);
