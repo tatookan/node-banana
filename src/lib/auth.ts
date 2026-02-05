@@ -81,3 +81,17 @@ export async function getCurrentUser(request: NextRequest): Promise<DbUser | nul
 export function isAdmin(user: DbUser | null): boolean {
   return user?.role === 'admin';
 }
+
+/**
+ * Get user from token (returns userId or null)
+ * Convenience function for API routes
+ */
+export async function getUser(request: NextRequest): Promise<TokenPayload | null> {
+  const token = request.cookies.get('auth_token')?.value;
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload) return null;
+
+  return payload;
+}

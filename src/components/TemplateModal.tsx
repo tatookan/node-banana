@@ -1,38 +1,108 @@
 /**
  * 模板库弹窗组件
- * 显示预定义的工作流模板
+ * 从 API 加载已审核通过的工作流模板
  */
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkflowStore } from "@/store/workflowStore";
 import {
-  WORKFLOW_TEMPLATES,
   TEMPLATE_CATEGORIES,
-  getTemplatesByCategory,
   type WorkflowTemplate,
 } from "@/lib/workflowTemplates";
+import type { WorkflowTemplate as ApiWorkflowTemplate } from "@/types";
 
 export interface TemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// API 返回的模板数据转换为本地模板格式
+function apiTemplateToLocal(apiTemplate: any): WorkflowTemplate {
+  return {
+    id: apiTemplate.workflow_id,
+    name: apiTemplate.name,
+    description: apiTemplate.description || '',
+    category: apiTemplate.category,
+    thumbnail: apiTemplate.thumbnail || undefined,
+    workflow: apiTemplate.workflow_data ? (apiTemplate.workflow_data as any) : undefined,
+  };
+}
+
 export function TemplateModal({ isOpen, onClose }: TemplateModalProps) {
   const loadWorkflow = useWorkflowStore((state) => state.loadWorkflow);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // 根据分类过滤模板
-  const filteredTemplates = getTemplatesByCategory(selectedCategory);
+  // 从 API 加载模板
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchTemplates = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const categoryParam = selectedCategory === 'all' ? '' : `?category=${selectedCategory}`;
+        const response = await fetch(`/api/workflow-templates${categoryParam}`);
+
+        if (!response.ok) {
+          throw new Error('获取模板失败');
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.templates) {
+          const localTemplates = data.templates.map(apiTemplateToLocal);
+          setTemplates(localTemplates);
+        } else {
+          setTemplates([]);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch templates:', err);
+        setError(err.message || '获取模板失败');
+        setTemplates([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTemplates();
+  }, [isOpen, selectedCategory]);
+
+  // 根据分类过滤模板（前端过滤，因为 API 也支持）
+  // 注意：当 API 支持分类过滤时，前端不需要再次过滤
+  const filteredTemplates = templates;
 
   // 加载模板
   const handleLoadTemplate = useCallback(
     async (template: WorkflowTemplate) => {
       try {
-        await loadWorkflow(template.workflow);
-        onClose();
+        // 如果模板有完整的 workflow_data，直接加载
+        if (template.workflow && template.workflow.nodes) {
+          await loadWorkflow(template.workflow);
+          onClose();
+          return;
+        }
+
+        // 否则从 API 获取完整的模板详情
+        const response = await fetch(`/api/workflow-templates/${template.id}`);
+        if (!response.ok) {
+          throw new Error('获取模板详情失败');
+        }
+
+        const data = await response.json();
+        if (data.success && data.template) {
+          const fullTemplate = apiTemplateToLocal(data.template);
+          await loadWorkflow(fullTemplate.workflow);
+          onClose();
+        } else {
+          throw new Error(data.error || '获取模板详情失败');
+        }
       } catch (error) {
         console.error('Failed to load template:', error);
         alert('加载模板失败，请重试。');
@@ -88,7 +158,21 @@ export function TemplateModal({ isOpen, onClose }: TemplateModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {filteredTemplates.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12 text-neutral-500">
+              <p className="text-lg">加载中...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-500">
+              <p className="text-lg">{error}</p>
+              <button
+                onClick={() => setSelectedCategory(selectedCategory)}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                重试
+              </button>
+            </div>
+          ) : filteredTemplates.length === 0 ? (
             <div className="text-center py-12 text-neutral-500">
               <p className="text-lg">暂无模板</p>
             </div>
@@ -127,7 +211,7 @@ export function TemplateModal({ isOpen, onClose }: TemplateModalProps) {
 
                   {/* Template Info */}
                   <div className="flex items-center justify-between text-xs text-neutral-500">
-                    <span>{template.workflow.nodes.length} 个节点</span>
+                    <span>点击加载模板</span>
                     <span className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       点击加载 →
                     </span>

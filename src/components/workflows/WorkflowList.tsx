@@ -89,8 +89,8 @@ export function WorkflowList({
 
   return (
     <div className="h-full flex flex-col">
-      {/* 工作流列表 */}
-      <div className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "flex flex-col gap-3"}>
+      {/* 工作流列表 - 统一使用单列布局 */}
+      <div className="flex flex-col gap-3">
         {workflows.map((workflow) => (
           <WorkflowCard
             key={workflow.id}

@@ -528,3 +528,72 @@ export interface WorkflowsListResponse {
   page: number;
   limit: number;
 }
+
+// ============================================================
+// 模板库类型定义
+// ============================================================
+
+// 模板分类
+export type TemplateCategory = 'basic' | 'product' | 'portrait' | 'style' | 'other';
+
+// 模板状态
+export type TemplateStatus = 'pending' | 'approved' | 'rejected';
+
+// 模板实体
+export interface WorkflowTemplate {
+  id: number;
+  workflow_id: string;
+  name: string;
+  description: string | null;
+  category: TemplateCategory;
+  thumbnail: string | null;
+  workflow_data: {
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+    groups: NodeGroup[];
+    viewport: { x: number; y: number; zoom: number };
+  };
+  status: TemplateStatus;
+  submitted_by: number;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 提交模板请求
+export interface SubmitTemplateRequest {
+  name: string;
+  description?: string;
+  category: TemplateCategory;
+  workflow_data: WorkflowTemplate['workflow_data'];
+}
+
+// 提交模板响应
+export interface SubmitTemplateResponse {
+  success: boolean;
+  template?: WorkflowTemplate;
+  error?: string;
+}
+
+// 模板列表响应
+export interface TemplatesListResponse {
+  success: boolean;
+  templates?: WorkflowTemplate[];
+  total?: number;
+  error?: string;
+}
+
+// 审核请求
+export interface ReviewTemplateRequest {
+  rejection_reason?: string;
+}
+
+// 模板详情（包含提交者信息）
+export interface WorkflowTemplateWithUser extends WorkflowTemplate {
+  submitted_by_username: string;
+  submitted_by_email: string;
+  reviewed_by_username?: string | null;
+}
+

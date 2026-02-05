@@ -202,6 +202,31 @@ export async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // Create workflow_templates table for template library
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS workflow_templates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      workflow_id VARCHAR(100) UNIQUE NOT NULL COMMENT 'UUID',
+      name VARCHAR(200) NOT NULL COMMENT '模板名称',
+      description TEXT COMMENT '模板描述',
+      category ENUM('basic', 'product', 'portrait', 'style', 'other') DEFAULT 'other' COMMENT '模板分类',
+      thumbnail VARCHAR(500) COMMENT '预览图URL',
+      workflow_data JSON NOT NULL COMMENT '完整工作流数据',
+      status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending' COMMENT '审核状态',
+      submitted_by INT NOT NULL COMMENT '提交者用户ID',
+      reviewed_by INT NULL COMMENT '审核者用户ID',
+      reviewed_at TIMESTAMP NULL COMMENT '审核时间',
+      rejection_reason TEXT NULL COMMENT '拒绝原因',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_status (status),
+      INDEX idx_category (category),
+      INDEX idx_submitted_by (submitted_by)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   console.log('[Database] Tables initialized');
 }
 

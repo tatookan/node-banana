@@ -6,7 +6,7 @@ import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { ImageInputNodeData } from "@/types";
 import { compressImage, formatFileSize, getAABaoTargetSize } from "@/utils/imageCompressor";
-import { useImageCompression, cleanupCompressionWorker } from "@/hooks/useImageCompression";
+import { useImageCompression } from "@/hooks/useImageCompression";
 
 type ImageInputNodeType = Node<ImageInputNodeData, "imageInput">;
 
@@ -60,16 +60,6 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
 
     return false;
   }, []);
-
-  // 清理 Worker 组件卸载时
-  useEffect(() => {
-    return () => {
-      if (isWorkerSupported) {
-        const workerRef = useRef<Worker | null>(null);
-        cleanupCompressionWorker(workerRef);
-      }
-    };
-  }, [isWorkerSupported]);
 
   // 辅助函数：加载图片并获取尺寸
   const loadImageData = useCallback((file: File): Promise<{ dataUrl: string; width: number; height: number }> => {

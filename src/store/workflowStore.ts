@@ -123,7 +123,13 @@ interface WorkflowStore {
   serverWorkflowName: string | null;
   serverWorkflowDescription: string | null;
   serverFolderId: number | null;
-  saveToServer: (name?: string, description?: string, folderId?: number | null) => Promise<boolean>;
+  saveToServer: (params: {
+    name?: string;
+    description?: string;
+    folderId?: number | null;
+    saveAsTemplate?: boolean;
+    templateCategory?: string;
+  }) => Promise<boolean>;
   loadFromServer: (workflowId: number) => Promise<boolean>;
   createServerWorkflow: (name: string, folderId?: number | null) => Promise<boolean>;
 
@@ -2530,8 +2536,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   },
 
   // Server workflow management
-  saveToServer: async (name?: string, description?: string, folderId?: number | null) => {
+  saveToServer: async (params: {
+    name?: string;
+    description?: string;
+    folderId?: number | null;
+    saveAsTemplate?: boolean;
+    templateCategory?: string;
+  }) => {
     const { nodes, edges, groups, serverWorkflowId } = get();
+    const { name, description, folderId, saveAsTemplate, templateCategory } = params;
 
     // Use provided name or current server workflow name
     const workflowName = name || get().serverWorkflowName || "未命名工作流";
@@ -2548,9 +2561,10 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         viewport: { x: 0, y: 0, zoom: 1 },
       };
 
+      let workflowResponse;
       if (serverWorkflowId) {
         // Update existing workflow
-        const response = await fetch(`/api/workflows/${serverWorkflowId}`, {
+        workflowResponse = await fetch(`/api/workflows/${serverWorkflowId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2560,28 +2574,9 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             workflow_data: workflowData,
           }),
         });
-
-        const result = await response.json();
-
-        if (result.success) {
-          set({
-            serverWorkflowName: workflowName,
-            serverWorkflowDescription: description || null,
-            serverFolderId: finalFolderId ?? null,
-            hasUnsavedChanges: false,
-            isSaving: false,
-            lastSavedAt: Date.now(),
-          });
-          useToast.getState().show("保存成功", "success");
-          return true;
-        } else {
-          set({ isSaving: false });
-          useToast.getState().show(`保存失败: ${result.error}`, "error");
-          return false;
-        }
       } else {
         // Create new workflow
-        const response = await fetch("/api/workflows", {
+        workflowResponse = await fetch("/api/workflows", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2592,27 +2587,60 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             workflow_data: workflowData,
           }),
         });
+      }
 
-        const result = await response.json();
+      const result = await workflowResponse.json();
 
-        if (result.success) {
-          set({
-            serverWorkflowId: result.workflow.id,
-            serverWorkflowName: workflowName,
-            serverWorkflowDescription: description || null,
-            serverFolderId: finalFolderId ?? null,
-            hasUnsavedChanges: false,
-            isSaving: false,
-            lastSavedAt: Date.now(),
+      if (!result.success) {
+        set({ isSaving: false });
+        useToast.getState().show(`保存失败: ${result.error}`, "error");
+        return false;
+      }
+
+      // Update state with workflow info
+      set({
+        serverWorkflowId: result.workflow?.id || serverWorkflowId,
+        serverWorkflowName: workflowName,
+        serverWorkflowDescription: description || null,
+        serverFolderId: finalFolderId ?? null,
+        hasUnsavedChanges: false,
+        lastSavedAt: Date.now(),
+      });
+
+      // If saveAsTemplate is true, submit to template library
+      if (saveAsTemplate && workflowResponse.ok) {
+        try {
+          const templateResponse = await fetch('/api/workflow-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: workflowName,
+              description: description || '',
+              category: templateCategory || 'other',
+              workflow_data: workflowData,
+            }),
           });
-          useToast.getState().show("保存成功", "success");
-          return true;
-        } else {
-          set({ isSaving: false });
-          useToast.getState().show(`保存失败: ${result.error}`, "error");
-          return false;
+
+          const templateResult = await templateResponse.json();
+
+          if (!templateResult.success) {
+            console.error('模板提交失败:', templateResult.error);
+            // Don't fail the entire save, just log the error
+            useToast.getState().show(`工作流已保存，但模板提交失败: ${templateResult.error}`, 'warning');
+          }
+        } catch (error) {
+          console.error('模板提交错误:', error);
+          // Don't fail the entire save, just log the error
+          useToast.getState().show(
+            `工作流已保存，但模板提交时出错: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            'warning'
+          );
         }
       }
+
+      set({ isSaving: false });
+      useToast.getState().show("保存成功", "success");
+      return true;
     } catch (error) {
       set({ isSaving: false });
       useToast.getState().show(

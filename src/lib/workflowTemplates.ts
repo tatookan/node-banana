@@ -10,7 +10,7 @@ export interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
-  category: 'product' | 'portrait' | 'style' | 'basic';
+  category: 'product' | 'portrait' | 'style' | 'basic' | 'other';
   thumbnail?: string;
   workflow: WorkflowFile;
 }
@@ -78,100 +78,10 @@ function createBaseNode(type: NodeType, id: string, position: { x: number; y: nu
 }
 
 /**
- * 预定义工作流模板
+ * 预定义工作流模板（已清空，现从 API 加载）
+ * 保留空数组以避免类型错误
  */
-export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
-  {
-    id: 'basic-image-gen',
-    name: '基础图片生成',
-    description: '最简单的图片生成工作流',
-    category: 'basic',
-    workflow: {
-      version: 1,
-      name: '基础图片生成',
-      id: crypto.randomUUID(),
-      edgeStyle: 'curved',
-      nodes: [
-        createBaseNode('prompt', 'prompt-1', { x: 100, y: 100 }),
-        createBaseNode('nanoBanana', 'nano-1', { x: 450, y: 100 }),
-        createBaseNode('output', 'output-1', { x: 800, y: 100 }),
-      ],
-      edges: [
-        { id: 'e1', source: 'prompt-1', sourceHandle: 'text', target: 'nano-1', targetHandle: 'text' },
-        { id: 'e2', source: 'nano-1', sourceHandle: 'image', target: 'output-1', targetHandle: 'image' },
-      ],
-    },
-  },
-  {
-    id: 'product-shoot',
-    name: '产品拍摄',
-    description: '适合电商产品图片生成',
-    category: 'product',
-    workflow: {
-      version: 1,
-      name: '产品拍摄',
-      id: crypto.randomUUID(),
-      edgeStyle: 'curved',
-      nodes: [
-        createBaseNode('imageInput', 'image-1', { x: 50, y: 50 }),
-        createBaseNode('prompt', 'prompt-1', { x: 50, y: 350 }),
-        createBaseNode('nanoBanana', 'nano-1', { x: 400, y: 200 }),
-        createBaseNode('output', 'output-1', { x: 750, y: 200 }),
-      ],
-      edges: [
-        { id: 'e1', source: 'image-1', sourceHandle: 'image', target: 'nano-1', targetHandle: 'image' },
-        { id: 'e2', source: 'prompt-1', sourceHandle: 'text', target: 'nano-1', targetHandle: 'text' },
-        { id: 'e3', source: 'nano-1', sourceHandle: 'image', target: 'output-1', targetHandle: 'image' },
-      ],
-    },
-  },
-  {
-    id: 'portrait-gen',
-    name: '人像生成',
-    description: '生成高质量的人像图片',
-    category: 'portrait',
-    workflow: {
-      version: 1,
-      name: '人像生成',
-      id: crypto.randomUUID(),
-      edgeStyle: 'curved',
-      nodes: [
-        createBaseNode('prompt', 'prompt-1', { x: 100, y: 100 }),
-        createBaseNode('llmGenerate', 'llm-1', { x: 100, y: 350 }),
-        createBaseNode('nanoBanana', 'nano-1', { x: 450, y: 200 }),
-        createBaseNode('output', 'output-1', { x: 800, y: 200 }),
-      ],
-      edges: [
-        { id: 'e1', source: 'prompt-1', sourceHandle: 'text', target: 'llm-1', targetHandle: 'text' },
-        { id: 'e2', source: 'llm-1', sourceHandle: 'text', target: 'nano-1', targetHandle: 'text' },
-        { id: 'e3', source: 'nano-1', sourceHandle: 'image', target: 'output-1', targetHandle: 'image' },
-      ],
-    },
-  },
-  {
-    id: 'style-transfer',
-    name: '风格迁移',
-    description: '将图片转换为特定风格',
-    category: 'style',
-    workflow: {
-      version: 1,
-      name: '风格迁移',
-      id: crypto.randomUUID(),
-      edgeStyle: 'curved',
-      nodes: [
-        createBaseNode('imageInput', 'image-1', { x: 50, y: 50 }),
-        createBaseNode('prompt', 'prompt-1', { x: 50, y: 350 }),
-        createBaseNode('nanoBanana', 'nano-1', { x: 400, y: 200 }),
-        createBaseNode('annotation', 'anno-1', { x: 750, y: 200 }),
-      ],
-      edges: [
-        { id: 'e1', source: 'image-1', sourceHandle: 'image', target: 'nano-1', targetHandle: 'image' },
-        { id: 'e2', source: 'prompt-1', sourceHandle: 'text', target: 'nano-1', targetHandle: 'text' },
-        { id: 'e3', source: 'nano-1', sourceHandle: 'image', target: 'anno-1', targetHandle: 'image' },
-      ],
-    },
-  },
-];
+export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [];
 
 /**
  * 模板分类

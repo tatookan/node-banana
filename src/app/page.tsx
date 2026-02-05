@@ -6,14 +6,14 @@ import { Header } from "@/components/Header";
 import { WorkflowCanvas } from "@/components/WorkflowCanvas";
 import { FloatingActionBar } from "@/components/FloatingActionBar";
 import { AnnotationModal } from "@/components/AnnotationModal";
-import { WorkflowPanel } from "@/components/WorkflowPanel";
 import { QueuePanel } from "@/components/QueuePanel";
+import { WorkflowsPanel } from "@/components/WorkflowsPanel";
 import { TemplateModal } from "@/components/TemplateModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { useWorkflowStore } from "@/store/workflowStore";
 
 // 侧边栏状态类型
-type SidebarPanel = 'workflow' | 'queue' | null;
+type SidebarPanel = 'workflows' | 'queue' | null;
 
 export default function Home() {
   const initializeAutoSave = useWorkflowStore(
@@ -31,6 +31,15 @@ export default function Home() {
     return () => cleanupAutoSave();
   }, [initializeAutoSave, cleanupAutoSave]);
 
+  // 检查是否需要打开工作流面板（从 /workflows 重定向）
+  useEffect(() => {
+    const shouldOpenPanel = sessionStorage.getItem('openWorkflowsPanel');
+    if (shouldOpenPanel === 'true') {
+      setSidebarPanel('workflows');
+      sessionStorage.removeItem('openWorkflowsPanel');
+    }
+  }, []);
+
   return (
     <ReactFlowProvider>
       <div className="h-screen flex flex-col">
@@ -47,8 +56,8 @@ export default function Home() {
         <AnnotationModal />
 
         {/* 左侧工作流面板 */}
-        <WorkflowPanel
-          isOpen={sidebarPanel === 'workflow'}
+        <WorkflowsPanel
+          isOpen={sidebarPanel === 'workflows'}
           onClose={() => setSidebarPanel(null)}
         />
 

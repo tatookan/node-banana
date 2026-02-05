@@ -9,11 +9,11 @@ import { QuotaIndicator } from "./QuotaIndicator";
 import { StatsModal } from "./StatsModal";
 import ImageGallery from "./ImageGallery";
 import { useAuth } from "@/contexts/AuthContext";
-import { SaveToServerModal } from "@/components/workflows/SaveToServerModal";
+import { SaveModal, type SaveWorkflowData } from "@/components/SaveModal";
 import type { WorkflowFolder } from "@/types";
 
 // 侧边栏状态类型
-type SidebarPanel = 'workflow' | 'queue' | null;
+type SidebarPanel = 'workflows' | 'queue' | null;
 
 interface HeaderProps {
   sidebarPanel: SidebarPanel;
@@ -52,7 +52,7 @@ export function Header({
 
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showCloudGallery, setShowCloudGallery] = useState(false);
-  const [showSaveToServerModal, setShowSaveToServerModal] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const [folders, setFolders] = useState<WorkflowFolder[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +72,7 @@ export function Header({
   };
 
   // 切换侧边栏面板
-  const toggleSidebar = (panel: 'workflow' | 'queue') => {
+  const toggleSidebar = (panel: 'workflows' | 'queue') => {
     if (sidebarPanel === panel) {
       setSidebarPanel(null);
     } else {
@@ -149,19 +149,36 @@ export function Header({
     }
   };
 
-  // 打开云端保存弹窗
-  const handleOpenSaveToServerModal = async () => {
+  // 打开保存弹窗
+  const handleOpenSaveModal = async () => {
     await loadFolders();
-    setShowSaveToServerModal(true);
+    setShowSaveModal(true);
   };
 
-  // 保存到服务器
-  const handleSaveToServer = async (name: string, description?: string, folderId?: number | null) => {
-    const success = await saveToServer(name, description, folderId);
+  // 保存工作流
+  const handleSave = async (data: SaveWorkflowData) => {
+    const { name, description, folderId, saveAsTemplate, templateCategory } = data;
+
+    const success = await saveToServer({
+      name,
+      description,
+      folderId,
+      saveAsTemplate,
+      templateCategory,
+    });
+
     if (success) {
-      alert("保存成功！");
+      if (saveAsTemplate) {
+        alert(isAdmin
+          ? '工作流已保存到服务器，并已上架到模板库！'
+          : '工作流已保存到服务器，模板已提交审核！'
+        );
+      } else {
+        alert('工作流已保存到服务器！');
+      }
+      setShowSaveModal(false);
     } else {
-      alert("保存失败，请重试。");
+      alert('保存失败，请重试。');
     }
   };
 
@@ -172,16 +189,17 @@ export function Header({
         onClose={() => setShowStatsModal(false)}
       />
 
-      {/* Save to Server Modal */}
-      <SaveToServerModal
-        isOpen={showSaveToServerModal}
-        onClose={() => setShowSaveToServerModal(false)}
-        onSave={handleSaveToServer}
+      {/* Save Modal - unified save workflow */}
+      <SaveModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSave}
         currentName={serverWorkflowName || workflowName}
         currentDescription={serverWorkflowDescription}
         currentFolderId={serverFolderId}
         folders={folders}
         isLoading={isLoadingFolders}
+        isAdmin={isAdmin}
       />
 
       {/* Cloud Gallery Modal */}
@@ -217,9 +235,9 @@ export function Header({
           {/* 功能按钮组 */}
           <div className="flex items-center gap-1 ml-4 pl-4 border-l border-neutral-700">
             <button
-              onClick={() => toggleSidebar('workflow')}
+              onClick={() => toggleSidebar('workflows')}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                sidebarPanel === 'workflow'
+                sidebarPanel === 'workflows'
                   ? 'bg-blue-600 text-white'
                   : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
               }`}
@@ -280,26 +298,13 @@ export function Header({
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
                   )}
                 </button>
-                {/* 云端保存按钮 */}
+                {/* 保存按钮 */}
                 {user && (
                   <button
-                    onClick={handleOpenSaveToServerModal}
-                    className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
-                    title="保存到服务器"
+                    onClick={handleOpenSaveModal}
+                    className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                      />
-                    </svg>
+                    保存
                   </button>
                 )}
                 {saveDirectoryPath && (
@@ -356,26 +361,13 @@ export function Header({
                 >
                   配置项目
                 </button>
-                {/* 云端保存按钮（未配置状态） */}
+                {/* 保存按钮（未配置状态） */}
                 {user && (
                   <button
-                    onClick={handleOpenSaveToServerModal}
-                    className="p-1 text-neutral-400 hover:text-neutral-200 transition-colors"
-                    title="保存到服务器"
+                    onClick={handleOpenSaveModal}
+                    className="text-neutral-400 hover:text-neutral-200 transition-colors"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                      />
-                    </svg>
+                    保存
                   </button>
                 )}
                 <span className="text-neutral-500">·</span>
