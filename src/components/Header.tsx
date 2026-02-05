@@ -12,7 +12,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SaveToServerModal } from "@/components/workflows/SaveToServerModal";
 import type { WorkflowFolder } from "@/types";
 
-export function Header() {
+// 侧边栏状态类型
+type SidebarPanel = 'workflow' | 'queue' | null;
+
+interface HeaderProps {
+  sidebarPanel: SidebarPanel;
+  setSidebarPanel: (panel: SidebarPanel) => void;
+  showTemplateModal: boolean;
+  setShowTemplateModal: (show: boolean) => void;
+  showSettingsModal: boolean;
+  setShowSettingsModal: (show: boolean) => void;
+}
+
+export function Header({
+  sidebarPanel,
+  setSidebarPanel,
+  showTemplateModal,
+  setShowTemplateModal,
+  showSettingsModal,
+  setShowSettingsModal,
+}: HeaderProps) {
   const router = useRouter();
   const { user, logout, isAdmin } = useAuth();
   const {
@@ -31,8 +50,6 @@ export function Header() {
     serverFolderId,
   } = useWorkflowStore();
 
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [projectModalMode, setProjectModalMode] = useState<"new" | "settings">("new");
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showCloudGallery, setShowCloudGallery] = useState(false);
   const [showSaveToServerModal, setShowSaveToServerModal] = useState(false);
@@ -50,14 +67,17 @@ export function Header() {
     });
   };
 
-  const handleNewProject = () => {
-    setProjectModalMode("new");
-    setShowProjectModal(true);
+  const handleOpenSettings = () => {
+    setShowSettingsModal(true);
   };
 
-  const handleOpenSettings = () => {
-    setProjectModalMode("settings");
-    setShowProjectModal(true);
+  // 切换侧边栏面板
+  const toggleSidebar = (panel: 'workflow' | 'queue') => {
+    if (sidebarPanel === panel) {
+      setSidebarPanel(null);
+    } else {
+      setSidebarPanel(panel);
+    }
   };
 
   const handleOpenFile = () => {
@@ -85,18 +105,6 @@ export function Header() {
 
     // Reset input so same file can be loaded again
     e.target.value = "";
-  };
-
-  const handleProjectSave = async (id: string, name: string, path: string) => {
-    setWorkflowMetadata(id, name, path); // generationsPath is auto-derived
-    setShowProjectModal(false);
-    // Small delay to let state update
-    setTimeout(() => {
-      saveToFile().catch((error) => {
-        console.error("Failed to save project:", error);
-        alert("保存项目失败，请重试。");
-      });
-    }, 50);
   };
 
   const handleOpenDirectory = async () => {
@@ -159,12 +167,6 @@ export function Header() {
 
   return (
     <>
-      <ProjectSetupModal
-        isOpen={showProjectModal}
-        onClose={() => setShowProjectModal(false)}
-        onSave={handleProjectSave}
-        mode={projectModalMode}
-      />
       <StatsModal
         isOpen={showStatsModal}
         onClose={() => setShowStatsModal(false)}
@@ -205,12 +207,50 @@ export function Header() {
         className="hidden"
       />
       <header className="h-11 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-2">
+        {/* 左侧：Logo 和功能按钮 */}
+        <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="心视觉" className="w-6 h-6" />
-          <h1 className="text-2xl font-semibold text-neutral-100 tracking-tight">
+          <h1 className="text-xl font-semibold text-neutral-100 tracking-tight">
             心视觉
           </h1>
 
+          {/* 功能按钮组 */}
+          <div className="flex items-center gap-1 ml-4 pl-4 border-l border-neutral-700">
+            <button
+              onClick={() => toggleSidebar('workflow')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                sidebarPanel === 'workflow'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              工作流
+            </button>
+            <button
+              onClick={() => setShowTemplateModal(true)}
+              className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors"
+            >
+              模板库
+            </button>
+            <button
+              onClick={() => toggleSidebar('queue')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                sidebarPanel === 'queue'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              队列
+            </button>
+            <button
+              onClick={handleOpenSettings}
+              className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors"
+            >
+              设置
+            </button>
+          </div>
+
+          {/* 项目信息 */}
           <div className="flex items-center gap-2 ml-4 pl-4 border-l border-neutral-700">
             {isProjectConfigured ? (
               <>
@@ -311,10 +351,10 @@ export function Header() {
             ) : (
               <div className="flex items-center gap-3 text-xs">
                 <button
-                  onClick={handleNewProject}
+                  onClick={handleOpenSettings}
                   className="text-neutral-400 hover:text-neutral-200 transition-colors"
                 >
-                  保存项目
+                  配置项目
                 </button>
                 {/* 云端保存按钮（未配置状态） */}
                 {user && (

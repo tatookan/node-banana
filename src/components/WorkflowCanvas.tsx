@@ -50,6 +50,7 @@ import { detectAndSplitGrid } from "@/utils/gridSplitter";
 import { logger } from "@/utils/logger";
 import { WelcomeModal } from "./quickstart";
 import { ImagePreviewModal } from "./ImagePreviewModal";
+import { ContextMenu } from "./ContextMenu";
 
 const nodeTypes: NodeTypes = {
   imageInput: ImageInputNode,
@@ -266,6 +267,7 @@ export function WorkflowCanvas() {
   const [dropType, setDropType] = useState<"image" | "workflow" | "node" | null>(null);
   const [connectionDrop, setConnectionDrop] = useState<ConnectionDropState | null>(null);
   const [isSplitting, setIsSplitting] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; position: { x: number; y: number } } | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
   // Detect if canvas is empty for showing quickstart
@@ -1041,6 +1043,32 @@ export function WorkflowCanvas() {
     setDropType(null);
   }, []);
 
+  // 右键菜单处理
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+
+    // 只在画布空白区域触发，不处理节点上的右键
+    if ((event.target as HTMLElement).closest('.react-flow__node')) {
+      return;
+    }
+
+    // 计算画布位置
+    const flowPos = screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      position: flowPos,
+    });
+  }, [screenToFlowPosition]);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   const handleDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -1202,6 +1230,7 @@ export function WorkflowCanvas() {
         onConnect={handleConnect}
         onConnectEnd={handleConnectEnd}
         onNodeDragStop={handleNodeDragStop}
+        onContextMenu={handleContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         isValidConnection={isValidConnection}
@@ -1290,6 +1319,16 @@ export function WorkflowCanvas() {
         alt={imagePreviewAlt}
         onClose={closeImagePreview}
       />
+
+      {/* Context menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          position={contextMenu.position}
+          onClose={handleCloseContextMenu}
+        />
+      )}
     </div>
   );
 }
