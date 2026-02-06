@@ -1,5 +1,8 @@
 import { Node, Edge } from "@xyflow/react";
 
+// Save mode for workflow files
+export type WorkflowSaveMode = "template" | "results" | "auto";
+
 // Node Types
 export type NodeType =
   | "imageInput"

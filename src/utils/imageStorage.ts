@@ -20,16 +20,18 @@ function isBase64DataUrl(str: string | null | undefined): str is string {
 /**
  * Extract and save all images from a workflow, replacing base64 data with refs
  * Returns a new workflow object with image refs instead of base64 data
+ * @param saveMode - "template": skip AI results, "results": save everything, "auto": decide based on content
  */
 export async function externalizeWorkflowImages(
   workflow: WorkflowFile,
-  workflowPath: string
+  workflowPath: string,
+  saveMode: "template" | "results" | "auto" = "results"
 ): Promise<WorkflowFile> {
   const externalizedNodes: WorkflowNode[] = [];
   const savedImageIds = new Map<string, string>(); // base64 hash -> imageId (for deduplication)
 
   for (const node of workflow.nodes) {
-    const newNode = await externalizeNodeImages(node, workflowPath, savedImageIds);
+    const newNode = await externalizeNodeImages(node, workflowPath, savedImageIds, saveMode);
     externalizedNodes.push(newNode);
   }
 
@@ -41,11 +43,13 @@ export async function externalizeWorkflowImages(
 
 /**
  * Externalize images from a single node
+ * @param saveMode - "template": skip AI results, "results": save everything, "auto": decide based on content
  */
 async function externalizeNodeImages(
   node: WorkflowNode,
   workflowPath: string,
-  savedImageIds: Map<string, string>
+  savedImageIds: Map<string, string>,
+  saveMode: "template" | "results" | "auto" = "results"
 ): Promise<WorkflowNode> {
   const data = node.data as WorkflowNodeData;
   let newData: WorkflowNodeData;
@@ -100,10 +104,16 @@ async function externalizeNodeImages(
       const inputImageRefs: string[] = [];
       const inputImages: string[] = [];
 
-      // Handle output image - AI generated, save to generations
-      if (isBase64DataUrl(d.outputImage)) {
-        outputImageRef = await saveImageAndGetId(d.outputImage, workflowPath, savedImageIds, "generations");
+      // Handle output image - AI generated, save to generations (unless template mode)
+      // Template mode: skip AI output; Results/Auto mode: save normally
+      const shouldSaveOutput = saveMode !== "template" && isBase64DataUrl(d.outputImage);
+      if (shouldSaveOutput) {
+        outputImageRef = await saveImageAndGetId(d.outputImage!, workflowPath, savedImageIds, "generations");
         outputImage = null;
+      } else if (saveMode === "template") {
+        // Template mode: clear AI output
+        outputImage = null;
+        outputImageRef = undefined;
       }
 
       // Handle input images array (these come from connected nodes, save to inputs if present)
@@ -153,13 +163,21 @@ async function externalizeNodeImages(
 
     case "output": {
       const d = data as import("@/types").OutputNodeData;
-      // Output displays generated content, save to generations
-      if (isBase64DataUrl(d.image)) {
-        const imageId = await saveImageAndGetId(d.image, workflowPath, savedImageIds, "generations");
+      // Output displays generated content, save to generations (unless template mode)
+      const shouldSaveOutput = saveMode !== "template" && isBase64DataUrl(d.image);
+      if (shouldSaveOutput) {
+        const imageId = await saveImageAndGetId(d.image!, workflowPath, savedImageIds, "generations");
         newData = {
           ...d,
           image: null,
           imageRef: imageId,
+        };
+      } else if (saveMode === "template") {
+        // Template mode: clear output
+        newData = {
+          ...d,
+          image: null,
+          imageRef: undefined,
         };
       } else {
         newData = d;

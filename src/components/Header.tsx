@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkflowStore, WorkflowFile } from "@/store/workflowStore";
 import { ProjectSetupModal } from "./ProjectSetupModal";
@@ -10,7 +10,7 @@ import { StatsModal } from "./StatsModal";
 import ImageGallery from "./ImageGallery";
 import { useAuth } from "@/contexts/AuthContext";
 import { SaveModal, type SaveWorkflowData } from "@/components/SaveModal";
-import type { WorkflowFolder } from "@/types";
+import type { WorkflowFolder, WorkflowSaveMode } from "@/types";
 
 // 侧边栏状态类型
 type SidebarPanel = 'workflows' | 'queue' | null;
@@ -43,6 +43,8 @@ export function Header({
     isSaving,
     setWorkflowMetadata,
     saveToFile,
+    saveAsTemplate,
+    saveWithResults,
     loadWorkflow,
     saveToServer,
     serverWorkflowName,
@@ -157,7 +159,7 @@ export function Header({
 
   // 保存工作流
   const handleSave = async (data: SaveWorkflowData) => {
-    const { name, description, folderId, saveAsTemplate, templateCategory } = data;
+    const { name, description, folderId, saveAsTemplate, templateCategory, saveMode } = data;
 
     const success = await saveToServer({
       name,
@@ -165,6 +167,7 @@ export function Header({
       folderId,
       saveAsTemplate,
       templateCategory,
+      saveMode,
     });
 
     if (success) {
@@ -181,6 +184,7 @@ export function Header({
       alert('保存失败，请重试。');
     }
   };
+
 
   return (
     <>
@@ -276,10 +280,10 @@ export function Header({
                 <span className="text-neutral-600">|</span>
                 <CostIndicator />
                 <button
-                  onClick={() => canSave ? saveToFile() : handleOpenSettings()}
+                  onClick={() => canSave ? saveAsTemplate() : handleOpenSettings()}
                   disabled={isSaving}
                   className="relative p-1 text-neutral-400 hover:text-neutral-200 transition-colors disabled:opacity-50"
-                  title={isSaving ? "保存中..." : canSave ? "保存项目" : "配置保存位置"}
+                  title={isSaving ? "保存中..." : canSave ? "保存工作流（模板模式）" : "配置保存位置"}
                 >
                   <svg
                     className="w-4 h-4"

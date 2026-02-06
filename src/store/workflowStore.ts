@@ -27,6 +27,7 @@ import {
   WorkflowCostData,
   NodeGroup,
   GroupColor,
+  WorkflowSaveMode,
 } from "@/types";
 import { useToast } from "@/components/Toast";
 import { calculateGenerationCost } from "@/utils/costCalculator";
@@ -131,6 +132,7 @@ interface WorkflowStore {
     folderId?: number | null;
     saveAsTemplate?: boolean;
     templateCategory?: string;
+    saveMode?: WorkflowSaveMode;
   }) => Promise<boolean>;
   loadFromServer: (workflowId: number) => Promise<boolean>;
   createServerWorkflow: (name: string, folderId?: number | null) => Promise<boolean>;
@@ -156,6 +158,7 @@ interface WorkflowStore {
   autoSaveEnabled: boolean;
   isSaving: boolean;
   useExternalImageStorage: boolean;  // Store images as separate files vs embedded base64
+  saveMode: WorkflowSaveMode;  // Save mode: template, results, or auto
 
   // Auto-save actions
   setWorkflowMetadata: (id: string, name: string, path: string, generationsPath?: string | null) => void;
@@ -163,8 +166,11 @@ interface WorkflowStore {
   setGenerationsPath: (path: string | null) => void;
   setAutoSaveEnabled: (enabled: boolean) => void;
   setUseExternalImageStorage: (enabled: boolean) => void;
+  setSaveMode: (mode: WorkflowSaveMode) => void;
   markAsUnsaved: () => void;
-  saveToFile: () => Promise<boolean>;
+  saveToFile: (saveMode?: WorkflowSaveMode) => Promise<boolean>;
+  saveAsTemplate: () => Promise<boolean>;
+  saveWithResults: () => Promise<boolean>;
   initializeAutoSave: () => void;
   cleanupAutoSave: () => void;
 
@@ -443,6 +449,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   autoSaveEnabled: true,
   isSaving: false,
   useExternalImageStorage: true,  // Default: store images as separate files
+  saveMode: "template",  // Default: save as template (without AI results)
 
   // Server workflow initial state
   serverWorkflowId: null,
@@ -1250,17 +1257,6 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 const timestamp = Date.now();
                 const imageId = `${timestamp}`;
 
-                // Save the newly generated image to global history (only for Base64)
-                if (image) {
-                  get().addToGlobalHistory({
-                    image,
-                    timestamp,
-                    prompt: text,
-                    aspectRatio: nodeData.aspectRatio,
-                    model: nodeData.model,
-                  });
-                }
-
                 // Add to node's carousel history
                 const newHistoryItem = {
                   id: imageId,
@@ -1271,14 +1267,100 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 };
                 const updatedHistory = [newHistoryItem, ...(nodeData.imageHistory || [])];
 
-                updateNodeData(node.id, {
-                  outputImage: image,
-                  outputImageRef: imageRef,
-                  status: "complete",
-                  error: null,
-                  imageHistory: updatedHistory,
-                  selectedHistoryIndex: 0,
-                });
+                // Validate R2 reference before marking as complete
+                // This prevents accepting invalid R2 refs from Worker timeouts
+                if (imageRef && !image) {
+                  console.log(`[Store:${node.id}] Validating R2 reference: ${imageRef}`);
+
+                  // First, store the imageRef and keep status as "loading"
+                  updateNodeData(node.id, {
+                    outputImage: null,
+                    outputImageRef: imageRef,
+                    status: "loading",
+                    error: null,
+                    imageHistory: updatedHistory,
+                    selectedHistoryIndex: 0,
+                  });
+
+                  // Validate the R2 reference by attempting to load it
+                  try {
+                    // Step 1: Resolve R2 ref to presigned URL
+                    const resolveResponse = await fetch("/api/resolve-image-ref", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ imageRef }),
+                    });
+
+                    if (!resolveResponse.ok) {
+                      throw new Error(`R2 resolve failed: ${resolveResponse.status}`);
+                    }
+
+                    const resolveResult = await resolveResponse.json();
+                    if (!resolveResult.success || !resolveResult.presignedUrl) {
+                      throw new Error(`R2 resolve returned error: ${resolveResult.error}`);
+                    }
+
+                    // Step 2: Try to fetch the image to verify it's accessible
+                    const testResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(resolveResult.presignedUrl)}`);
+
+                    if (!testResponse.ok) {
+                      throw new Error(`R2 image fetch failed: ${testResponse.status}`);
+                    }
+
+                    // Check that we got an image back (not JSON error)
+                    const contentType = testResponse.headers.get('content-type');
+                    if (!contentType || !contentType.startsWith('image/')) {
+                      throw new Error(`R2 object is not an image: ${contentType}`);
+                    }
+
+                    console.log(`[Store:${node.id}] ✓ R2 reference validated successfully`);
+
+                    // Validation passed - mark as complete
+                    updateNodeData(node.id, {
+                      status: "complete",
+                    });
+                  } catch (validationError) {
+                    // Validation failed - R2 reference is invalid
+                    console.error(`[Store:${node.id}] ❌ R2 reference validation failed:`, validationError);
+
+                    updateNodeData(node.id, {
+                      outputImageRef: null,
+                      status: "error",
+                      error: `R2 image validation failed. The Worker may have timed out. Please try again.`,
+                    });
+
+                    logger.error('node.error', 'R2 validation failed', {
+                      nodeId: node.id,
+                      imageRef,
+                      error: validationError instanceof Error ? validationError.message : String(validationError),
+                    });
+
+                    set({ isRunning: false, currentNodeId: null });
+                    await logger.endSession();
+                    return;
+                  }
+                } else {
+                  // Base64 mode - no validation needed
+                  // Save the newly generated image to global history
+                  if (image) {
+                    get().addToGlobalHistory({
+                      image,
+                      timestamp,
+                      prompt: text,
+                      aspectRatio: nodeData.aspectRatio,
+                      model: nodeData.model,
+                    });
+                  }
+
+                  updateNodeData(node.id, {
+                    outputImage: image,
+                    outputImageRef: imageRef,
+                    status: "complete",
+                    error: null,
+                    imageHistory: updatedHistory,
+                    selectedHistoryIndex: 0,
+                  });
+                }
 
                 // Save to cache
                 const cacheKeyData: CacheKeyData = {
@@ -1512,14 +1594,83 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                         pollAttempts,
                       });
 
-                      updateNodeData(node.id, {
-                        outputImage: pollResult.imageRef ? null : pollResult.image,
-                        outputImageRef: pollResult.imageRef || null,
-                        status: "complete",
-                        taskState: "success",
-                        taskId: result.taskId,
-                        error: null,
-                      });
+                      const image = pollResult.imageRef ? null : pollResult.image;
+                      const imageRef = pollResult.imageRef || null;
+
+                      // Validate R2 reference before marking as complete
+                      if (imageRef && !image) {
+                        console.log(`[Store:${node.id}] Validating VIDU R2 reference: ${imageRef}`);
+
+                        // Keep status as loading during validation
+                        updateNodeData(node.id, {
+                          outputImage: null,
+                          outputImageRef: imageRef,
+                          status: "loading",
+                          taskState: "success",
+                          taskId: result.taskId,
+                          error: null,
+                        });
+
+                        // Validate the R2 reference
+                        try {
+                          // Step 1: Resolve R2 ref to presigned URL
+                          const resolveResponse = await fetch("/api/resolve-image-ref", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ imageRef }),
+                          });
+
+                          if (!resolveResponse.ok) {
+                            throw new Error(`R2 resolve failed: ${resolveResponse.status}`);
+                          }
+
+                          const resolveResult = await resolveResponse.json();
+                          if (!resolveResult.success || !resolveResult.presignedUrl) {
+                            throw new Error(`R2 resolve returned error: ${resolveResult.error}`);
+                          }
+
+                          // Step 2: Try to fetch the image to verify it's accessible
+                          const testResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(resolveResult.presignedUrl)}`);
+
+                          if (!testResponse.ok) {
+                            throw new Error(`R2 image fetch failed: ${testResponse.status}`);
+                          }
+
+                          const contentType = testResponse.headers.get('content-type');
+                          if (!contentType || !contentType.startsWith('image/')) {
+                            throw new Error(`R2 object is not an image: ${contentType}`);
+                          }
+
+                          console.log(`[Store:${node.id}] ✓ VIDU R2 reference validated`);
+
+                          updateNodeData(node.id, {
+                            status: "complete",
+                          });
+                        } catch (validationError) {
+                          console.error(`[Store:${node.id}] ❌ VIDU R2 validation failed:`, validationError);
+
+                          updateNodeData(node.id, {
+                            outputImageRef: null,
+                            status: "error",
+                            taskState: "failed",
+                            error: `R2 image validation failed. Please try again.`,
+                          });
+
+                          set({ isRunning: false, currentNodeId: null });
+                          await logger.endSession();
+                          return;
+                        }
+                      } else {
+                        // Base64 mode - no validation needed
+                        updateNodeData(node.id, {
+                          outputImage: image,
+                          outputImageRef: imageRef,
+                          status: "complete",
+                          taskState: "success",
+                          taskId: result.taskId,
+                          error: null,
+                        });
+                      }
                       break;
                     } else if (pollResult.error) {
                       if (!pollResult.error.includes("still processing")) {
@@ -2455,11 +2606,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     set({ useExternalImageStorage: enabled });
   },
 
+  setSaveMode: (mode: WorkflowSaveMode) => {
+    set({ saveMode: mode });
+  },
+
   markAsUnsaved: () => {
     set({ hasUnsavedChanges: true });
   },
 
-  saveToFile: async () => {
+  saveToFile: async (saveModeParam?: WorkflowSaveMode) => {
     const {
       nodes,
       edges,
@@ -2469,6 +2624,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       workflowName,
       saveDirectoryPath,
       useExternalImageStorage,
+      saveMode,
     } = get();
 
     if (!workflowId || !workflowName || !saveDirectoryPath) {
@@ -2478,6 +2634,19 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     set({ isSaving: true });
 
     try {
+      // Determine the effective save mode
+      const effectiveSaveMode = saveModeParam || saveMode;
+      const finalSaveMode = effectiveSaveMode === "auto"
+        ? (() => {
+            // Helper function to determine save mode based on workflow state
+            const hasResults = nodes.some(node =>
+              (node.type === "nanoBanana" || node.type === "viduGenerate") &&
+              (node.data as NanoBananaNodeData | ViduGenerateNodeData).outputImage
+            );
+            return hasResults ? "results" : "template";
+          })()
+        : effectiveSaveMode;
+
       let workflow: WorkflowFile = {
         version: 1,
         id: workflowId,
@@ -2490,7 +2659,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
       // If external image storage is enabled, externalize images before saving
       if (useExternalImageStorage) {
-        workflow = await externalizeWorkflowImages(workflow, saveDirectoryPath);
+        workflow = await externalizeWorkflowImages(workflow, saveDirectoryPath, finalSaveMode);
       }
 
       const response = await fetch("/api/workflow", {
@@ -2538,6 +2707,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         );
       return false;
     }
+  },
+
+  // Convenience actions for different save modes
+  saveAsTemplate: async () => {
+    return await get().saveToFile("template");
+  },
+
+  saveWithResults: async () => {
+    return await get().saveToFile("results");
   },
 
   initializeAutoSave: () => {
@@ -2598,9 +2776,10 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     folderId?: number | null;
     saveAsTemplate?: boolean;
     templateCategory?: string;
+    saveMode?: WorkflowSaveMode;
   }) => {
     const { nodes, edges, groups, serverWorkflowId } = get();
-    const { name, description, folderId, saveAsTemplate, templateCategory } = params;
+    const { name, description, folderId, saveAsTemplate, templateCategory, saveMode } = params;
 
     // Use provided name or current server workflow name
     const workflowName = name || get().serverWorkflowName || "未命名工作流";
@@ -2609,13 +2788,56 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     set({ isSaving: true });
 
     try {
-      // Prepare workflow data
-      const workflowData = {
+      // Prepare workflow data - clear AI results if saveMode is "template"
+      let workflowData = {
         nodes,
         edges,
         groups: Object.keys(groups).length > 0 ? groups : {},
         viewport: { x: 0, y: 0, zoom: 1 },
       };
+
+      // Clear AI-generated outputs for template mode
+      if (saveMode === "template" || saveAsTemplate) {
+        workflowData = {
+          ...workflowData,
+          nodes: workflowData.nodes.map(node => {
+            if (node.type === "nanoBanana") {
+              const data = node.data as NanoBananaNodeData;
+              return {
+                ...node,
+                data: {
+                  ...data,
+                  outputImage: null,
+                  outputImageRef: undefined,
+                } as NanoBananaNodeData,
+              };
+            }
+            if (node.type === "viduGenerate") {
+              const data = node.data as ViduGenerateNodeData;
+              return {
+                ...node,
+                data: {
+                  ...data,
+                  outputImage: null,
+                  outputImageRef: undefined,
+                } as ViduGenerateNodeData,
+              };
+            }
+            if (node.type === "output") {
+              const data = node.data as OutputNodeData;
+              return {
+                ...node,
+                data: {
+                  ...data,
+                  image: null,
+                  imageRef: undefined,
+                } as OutputNodeData,
+              };
+            }
+            return node;
+          }),
+        };
+      }
 
       let workflowResponse;
       if (serverWorkflowId) {

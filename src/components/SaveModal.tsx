@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { WorkflowFolder, TemplateCategory } from "@/types";
+import type { WorkflowFolder, TemplateCategory, WorkflowSaveMode } from "@/types";
 
 interface SaveModalProps {
   isOpen: boolean;
@@ -26,6 +26,7 @@ export interface SaveWorkflowData {
   folderId?: number | null;
   saveAsTemplate: boolean;
   templateCategory?: TemplateCategory;
+  saveMode?: WorkflowSaveMode;  // NEW: Save mode for local file saving
 }
 
 // 模板分类选项
@@ -84,6 +85,7 @@ export function SaveModal({
         folderId: selectedFolderId,
         saveAsTemplate,
         templateCategory: saveAsTemplate ? templateCategory : undefined,
+        saveMode: "template",  // Fixed: always save as template mode
       });
       onClose();
     } finally {
