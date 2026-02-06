@@ -119,10 +119,6 @@ export async function compressImage(
       const newWidth = Math.round(originalDimensions.width * scale);
       const newHeight = Math.round(originalDimensions.height * scale);
 
-      console.log(`[预缩放] 原始尺寸: ${originalDimensions.width}x${originalDimensions.height}`);
-      console.log(`[预缩放] 目标尺寸: ${newWidth}x${newHeight} (最大边: ${maxWidth}px)`);
-      console.log(`[预缩放] 缩放比例: ${(scale * 100).toFixed(1)}%`);
-
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = resolve;
@@ -133,10 +129,6 @@ export async function compressImage(
       workingImageDataUrl = resizeImage(img, maxWidth, maxHeight);
       workingDimensions = await getImageDimensions(workingImageDataUrl);
       wasPreScaled = true;
-
-      console.log(`[预缩放] ✓ 预缩放完成: ${workingDimensions.width}x${workingDimensions.height}`);
-    } else {
-      console.log(`[预缩放] 图片无需缩放 (最大边: ${Math.max(originalDimensions.width, originalDimensions.height)}px ≤ ${maxWidth}px)`);
     }
   }
 
@@ -145,7 +137,6 @@ export async function compressImage(
 
   // 如果文件已经符合要求，直接返回
   if (currentSize <= maxSizeBytes) {
-    console.log(`[图片压缩] 文件已符合要求 (${formatFileSize(currentSize)} ≤ ${formatFileSize(maxSizeBytes)})，无需进一步压缩`);
     return {
       dataUrl: workingImageDataUrl,
       originalSize,
@@ -159,8 +150,6 @@ export async function compressImage(
   }
 
   // 文件仍然过大，需要质量压缩
-  console.log(`[图片压缩] 文件仍过大 (${formatFileSize(currentSize)} > ${formatFileSize(maxSizeBytes)})，开始质量压缩...`);
-
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = async () => {
@@ -454,9 +443,6 @@ export async function compressImageForAABao(
   file: File
 ): Promise<CompressionResult> {
   const targetSize = getAABaoTargetSize(file.size);
-
-  console.log(`[AABao压缩] 原始大小: ${formatFileSize(file.size)}`);
-  console.log(`[AABao压缩] 目标大小: ${formatFileSize(targetSize)}`);
 
   // 如果已经符合要求，不做处理
   if (file.size <= targetSize) {

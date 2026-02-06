@@ -112,20 +112,12 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
           ? getAABaoTargetSize(file.size)  // AABao 使用更激进的目标
           : 10 * 1024 * 1024;              // 默认 10MB
 
-        console.log(`[图片压缩] ========== 开始压缩 ==========`);
-        console.log(`[图片压缩] 文件名: ${file.name}`);
-        console.log(`[图片压缩] 原始大小: ${formatFileSize(file.size)}`);
-        console.log(`[图片压缩] 策略: ${useAABaoStrategy ? 'AABao' : '默认'} | 目标: ${formatFileSize(maxSize)}`);
-        console.log(`[图片压缩] 预缩放: 最大边 2048px | 质量: 100% 起始`);
-
         let result;
 
         // 优先使用 Web Worker（如果支持）
         if (isWorkerSupported && file.size > 1024 * 1024) { // 只对大于 1MB 的文件使用 Worker
-          console.log('[图片压缩] 使用 Web Worker 进行压缩...');
           // 先加载图片获取尺寸
           const { dataUrl, width, height } = await loadImageData(file);
-          console.log(`[图片压缩] 原始尺寸: ${width}x${height}`);
 
           // 使用 Worker 压缩
           result = await compressWithWorker(
@@ -143,7 +135,6 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         } else {
           // 不支持 Worker 或文件太小，使用主线程压缩
           if (!isWorkerSupported) {
-            console.log('[ImageInput] 浏览器不支持 Worker，使用主线程压缩');
             setIsLegacyCompressing(true);
           }
           result = await compressImage(file, maxSize, 2048, 2048, 1.0);
@@ -159,19 +150,6 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
           );
           setIsCompressing(false);
           return;
-        }
-
-        // 显示压缩信息（如果被压缩）
-        if (result.wasCompressed) {
-          console.log(
-            `[图片压缩] ${file.name}\n` +
-            `方法: ${result.method}\n` +
-            `大小: ${formatFileSize(result.originalSize)} → ${formatFileSize(result.compressedSize)} (${(result.compressionRatio * 100).toFixed(0)}%)${
-              result.originalDimensions && result.finalDimensions
-                ? `\n分辨率: ${result.originalDimensions.width}x${result.originalDimensions.height} → ${result.finalDimensions.width}x${result.finalDimensions.height}`
-                : ''
-            }`
-          );
         }
 
         // 使用压缩结果的尺寸（不再需要重新加载图片）

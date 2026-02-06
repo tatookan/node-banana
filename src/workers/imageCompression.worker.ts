@@ -39,9 +39,8 @@ export interface CompressionResultMessage {
   };
 }
 
-// 发送进度更新（同时输出到控制台）
+// 发送进度更新
 function sendProgress(step: string, percent: number) {
-  console.log(`[图片压缩] ${step} (${percent}%)`);
   self.postMessage({ type: 'progress', progress: { step, percent } } as CompressionResultMessage);
 }
 
@@ -339,10 +338,6 @@ self.onmessage = async (e: MessageEvent<CompressionMessage>) => {
         const newWidth = Math.round(imageBitmap.width * scale);
         const newHeight = Math.round(imageBitmap.height * scale);
 
-        console.log(`[预缩放] 原始尺寸: ${imageBitmap.width}x${imageBitmap.height}`);
-        console.log(`[预缩放] 目标尺寸: ${newWidth}x${newHeight} (最大边: ${options.maxWidth}px)`);
-        console.log(`[预缩放] 缩放比例: ${(scale * 100).toFixed(1)}%`);
-
         sendProgress('预缩放图片...', 10);
 
         const canvas = new OffscreenCanvas(newWidth, newHeight);
@@ -360,10 +355,7 @@ self.onmessage = async (e: MessageEvent<CompressionMessage>) => {
         imageBitmap.close(); // 释放原始 bitmap
         wasPreScaled = true;
 
-        console.log(`[预缩放] ✓ 预缩放完成: ${newWidth}x${newHeight}, 大小: ${formatFileSize(preScaledBlob.size)}`);
         sendProgress(`预缩放完成: ${newWidth}x${newHeight}`, 15);
-      } else {
-        console.log(`[预缩放] 图片无需缩放 (最大边: ${Math.max(imageBitmap.width, imageBitmap.height)}px ≤ ${options.maxWidth}px)`);
       }
     }
 
@@ -375,7 +367,6 @@ self.onmessage = async (e: MessageEvent<CompressionMessage>) => {
     if (currentSize <= options.maxSizeBytes) {
       workingBitmap.close();
       const resultDataUrl = preScaledDataUrl || imageData.dataUrl;
-      console.log(`[图片压缩] 文件已符合要求 (${formatFileSize(currentSize)} ≤ ${formatFileSize(options.maxSizeBytes)})，无需进一步压缩`);
       self.postMessage({
         type: 'result',
         result: {
@@ -393,7 +384,6 @@ self.onmessage = async (e: MessageEvent<CompressionMessage>) => {
     }
 
     // 文件仍然过大，需要质量压缩
-    console.log(`[图片压缩] 文件仍过大 (${formatFileSize(currentSize)} > ${formatFileSize(options.maxSizeBytes)})，开始质量压缩...`);
 
     // 执行质量压缩（传入预缩放后的 bitmap）
     const result = await compressWithOffscreenCanvas(
