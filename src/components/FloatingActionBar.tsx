@@ -184,6 +184,8 @@ export function FloatingActionBar() {
     validateWorkflow,
     edgeStyle,
     setEdgeStyle,
+    showTimer,
+    setShowTimer,
   } = useWorkflowStore();
   const [runMenuOpen, setRunMenuOpen] = useState(false);
   const runMenuRef = useRef<HTMLDivElement>(null);
@@ -215,6 +217,10 @@ export function FloatingActionBar() {
 
   const toggleEdgeStyle = () => {
     setEdgeStyle(edgeStyle === "angular" ? "curved" : "angular");
+  };
+
+  const toggleTimer = () => {
+    setShowTimer(!showTimer);
   };
 
   const handleRunClick = () => {
@@ -264,6 +270,21 @@ export function FloatingActionBar() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 12c0 0 4-8 8-8s8 8 8 8" />
             </svg>
           )}
+        </button>
+
+        {/* Timer toggle button */}
+        <button
+          onClick={toggleTimer}
+          title={showTimer ? "隐藏计时器" : "显示计时器"}
+          className={`p-1.5 rounded transition-colors ${
+            showTimer
+              ? "text-blue-400 hover:text-blue-200 hover:bg-neutral-700"
+              : "text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700"
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </button>
 
         <div className="w-px h-5 bg-neutral-600 mx-1.5" />

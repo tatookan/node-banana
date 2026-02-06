@@ -57,11 +57,13 @@ interface WorkflowStore {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   edgeStyle: EdgeStyle;
+  showTimer: boolean;  // Global timer display setting
   clipboard: ClipboardData | null;
   groups: Record<string, NodeGroup>;
 
   // Settings
   setEdgeStyle: (style: EdgeStyle) => void;
+  setShowTimer: (show: boolean) => void;  // Toggle timer display
 
   // Node operations
   addNode: (type: NodeType, position: XYPosition) => string;
@@ -213,6 +215,7 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         resonanceMode: true,  // 默认开启共鸣模式
         systemPrompt: "",     // 默认空系统提示词
         topP: 0.95,           // 默认 Top P
+        startTime: null,      // Timestamp when generation started
       } as NanoBananaNodeData;
     }
     case "viduGenerate":
@@ -231,6 +234,7 @@ const createDefaultNodeData = (type: NodeType): WorkflowNodeData => {
         imageHistory: [],
         selectedHistoryIndex: 0,
         offPeak: true,  // 默认开启错峰模式，降低成本
+        startTime: null,      // Timestamp when generation started
       } as ViduGenerateNodeData;
     case "llmGenerate":
       return {
@@ -376,6 +380,25 @@ export const saveNanoBananaDefaults = (settings: Partial<NanoBananaDefaults>) =>
   localStorage.setItem(NANO_BANANA_DEFAULTS_KEY, JSON.stringify(updated));
 };
 
+// localStorage helpers for timer display setting
+const TIMER_DISPLAY_KEY = "node-banana-timer-display";
+
+const loadTimerDisplaySetting = (): boolean => {
+  if (typeof window === "undefined") return true;  // Default: show timer
+  const stored = localStorage.getItem(TIMER_DISPLAY_KEY);
+  if (!stored) return true;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return true;
+  }
+};
+
+const saveTimerDisplaySetting = (enabled: boolean): void => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TIMER_DISPLAY_KEY, JSON.stringify(enabled));
+};
+
 const generateWorkflowId = () =>
   `wf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -399,6 +422,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   nodes: [],
   edges: [],
   edgeStyle: "curved" as EdgeStyle,
+  showTimer: loadTimerDisplaySetting(),  // Global timer display setting
   clipboard: null,
   groups: {},
   openModalCount: 0,
@@ -435,6 +459,11 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
   setEdgeStyle: (style: EdgeStyle) => {
     set({ edgeStyle: style });
+  },
+
+  setShowTimer: (show) => {
+    set({ showTimer: show });
+    saveTimerDisplaySetting(show);
   },
 
   incrementModalCount: () => {
@@ -1091,6 +1120,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               inputPrompt: text,
               status: "loading",
               error: null,
+              startTime: Date.now(),
             });
 
             try {
@@ -1600,6 +1630,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               updateNodeData(node.id, {
                 status: "error",
                 error: errorMessage,
+                startTime: null,
               });
               set({ isRunning: false, currentNodeId: null });
               await logger.endSession();
@@ -1620,6 +1651,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               updateNodeData(node.id, {
                 status: "error",
                 error: "viduq1 model requires at least 1 input image",
+                startTime: null,
               });
               set({ isRunning: false, currentNodeId: null });
               await logger.endSession();
@@ -1633,6 +1665,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               updateNodeData(node.id, {
                 status: "error",
                 error: "Missing text input",
+                startTime: null,
               });
               set({ isRunning: false, currentNodeId: null });
               await logger.endSession();
@@ -1645,6 +1678,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
               status: "loading",
               error: null,
               taskState: "created",
+              startTime: Date.now(),
             });
 
             try {
@@ -1709,6 +1743,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                   status: "error",
                   error: errorMessage,
                   taskState: "failed",
+                  startTime: null,
                 });
                 set({ isRunning: false, currentNodeId: null });
                 await logger.endSession();
@@ -1770,6 +1805,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                           error: pollResult.error,
                           taskState: "failed",
                           taskId: result.taskId,
+                          startTime: null,
                         });
                         set({ isRunning: false, currentNodeId: null });
                         await logger.endSession();
@@ -1810,6 +1846,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                   status: "error",
                   error: result.error || "Task creation failed",
                   taskState: "failed",
+                  startTime: null,
                 });
                 set({ isRunning: false, currentNodeId: null });
                 await logger.endSession();
@@ -1830,6 +1867,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 status: "error",
                 error: errorMessage,
                 taskState: "failed",
+                startTime: null,
               });
               set({ isRunning: false, currentNodeId: null });
               await logger.endSession();

@@ -6,6 +6,7 @@ import { BaseNode } from "./BaseNode";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { useUpdateNodeData, useGenerationsPath, useOpenImagePreview, useNodes, useEdges } from "@/store/selectors";
 import { ViduGenerateNodeData, ViduAspectRatio, ViduResolution, ViduModelType, ViduTaskState } from "@/types";
+import { formatElapsedTime } from "@/utils/timerFormatter";
 
 // VIDU Aspect Ratios - viduq2 supports all
 const VIDU_ASPECT_RATIOS: ViduAspectRatio[] = ["16:9", "9:16", "1:1", "3:4", "4:3", "21:9", "2:3", "3:2"];
@@ -29,8 +30,10 @@ export function ViduGenerateNode({ id, data, selected }: NodeProps<ViduGenerateN
   const openImagePreview = useOpenImagePreview();
   const nodes = useNodes();
   const edges = useEdges();
+  const showTimer = useWorkflowStore((state) => state.showTimer);
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const { setNodes } = useReactFlow();
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -91,6 +94,35 @@ export function ViduGenerateNode({ id, data, selected }: NodeProps<ViduGenerateN
     return () => clearTimeout(timeoutId);
   }, [showAdvanced, id, setNodes]);
 
+  // Timer effect - update every second when loading, restore/show when complete
+  useEffect(() => {
+    // Reset timer only on error or idle states
+    if (nodeData.status === "error" || nodeData.status === "idle") {
+      setElapsedTime(0);
+      return;
+    }
+
+    // Loading state: start real-time updates
+    if (nodeData.status === "loading" && nodeData.startTime) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const elapsed = (now - nodeData.startTime!) / 1000;
+        setElapsedTime(elapsed);
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+
+    // Complete state with startTime: restore final elapsed time
+    if (nodeData.status === "complete" && nodeData.startTime && elapsedTime === 0) {
+      const now = Date.now();
+      const elapsed = (now - nodeData.startTime!) / 1000;
+      setElapsedTime(elapsed);
+    }
+  }, [nodeData.status, nodeData.startTime]);
+
   const handleAspectRatioChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const aspectRatio = e.target.value as ViduAspectRatio;
@@ -122,6 +154,7 @@ export function ViduGenerateNode({ id, data, selected }: NodeProps<ViduGenerateN
       error: null,
       taskId: null,
       taskState: null,
+      startTime: null,
     });
   }, [id, updateNodeData]);
 
@@ -227,6 +260,12 @@ export function ViduGenerateNode({ id, data, selected }: NodeProps<ViduGenerateN
                 onDoubleClick={() => openImagePreview(nodeData.outputImage!, "生成的图片")}
                 title="双击查看大图"
               />
+              {/* Timer display - always show when enabled and has time */}
+              {showTimer && elapsedTime > 0 && (
+                <div className="absolute top-2 left-2 bg-neutral-950/90 text-blue-400 text-sm font-mono px-2.5 py-1 rounded border border-blue-500/90 z-10">
+                  {formatElapsedTime(elapsedTime)}
+                </div>
+              )}
               {/* Loading overlay for generation */}
               {nodeData.status === "loading" && (
                 <div className="absolute inset-0 bg-neutral-900/85 rounded flex flex-col items-center justify-center gap-3 px-6">

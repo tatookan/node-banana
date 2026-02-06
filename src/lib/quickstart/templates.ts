@@ -85,6 +85,7 @@ const createNanoBananaData = () => ({
   resonanceMode: true,
   systemPrompt: "",
   topP: 0.95,
+  startTime: null as number | null,
 });
 
 const createLLMGenerateData = () => ({

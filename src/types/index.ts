@@ -195,6 +195,8 @@ export interface NanoBananaNodeData extends BaseNodeData {
   // AABao Async Task fields
   taskId?: string | null;      // AABao task ID for polling (when provider === "aabao")
   taskState?: AabaoTaskState | null;  // Current task state
+  // Timer fields
+  startTime: number | null;   // Timestamp when generation started (for timer display)
 }
 
 // VIDU Generate Node Data (Image Generation via VIDU API)
@@ -220,6 +222,8 @@ export interface ViduGenerateNodeData extends BaseNodeData {
   seedFixed?: boolean;     // Whether seed is fixed by user
   lastSeed?: number;       // Last used seed (for display)
   cached?: boolean;        // Whether current output is from cache
+  // Timer fields
+  startTime: number | null;   // Timestamp when generation started (for timer display)
 }
 
 // LLM Generate Node Data (Text Generation)

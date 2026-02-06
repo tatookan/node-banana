@@ -8,6 +8,7 @@ import { NanoBananaNodeData, AspectRatio, Resolution, ModelType, ImageProvider, 
 import { cacheManager } from "@/lib/cacheManager";
 import { ResonanceModeToggle } from "@/components/ResonanceModeToggle";
 import { useImage } from "@/hooks/useImageLoader";
+import { formatElapsedTime } from "@/utils/timerFormatter";
 
 // All 10 aspect ratios supported by both models
 const ASPECT_RATIOS: AspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
@@ -37,8 +38,10 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   const nodes = useWorkflowStore((state) => state.nodes);
   const regenerateNode = useWorkflowStore((state) => state.regenerateNode);
   const isRunning = useWorkflowStore((state) => state.isRunning);
+  const showTimer = useWorkflowStore((state) => state.showTimer);
   const [isLoadingCarouselImage, setIsLoadingCarouselImage] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const { setNodes } = useReactFlow();
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -108,6 +111,35 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
     return () => clearTimeout(timeoutId);
   }, [showAdvanced, id, setNodes]);
 
+  // Timer effect - update every second when loading, restore/show when complete
+  useEffect(() => {
+    // Reset timer only on error or idle states
+    if (nodeData.status === "error" || nodeData.status === "idle") {
+      setElapsedTime(0);
+      return;
+    }
+
+    // Loading state: start real-time updates
+    if (nodeData.status === "loading" && nodeData.startTime) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const elapsed = (now - nodeData.startTime!) / 1000;
+        setElapsedTime(elapsed);
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+
+    // Complete state with startTime: restore final elapsed time
+    if (nodeData.status === "complete" && nodeData.startTime && elapsedTime === 0) {
+      const now = Date.now();
+      const elapsed = (now - nodeData.startTime!) / 1000;
+      setElapsedTime(elapsed);
+    }
+  }, [nodeData.status, nodeData.startTime]);
+
   const handleAspectRatioChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const aspectRatio = e.target.value as AspectRatio;
@@ -174,6 +206,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
       error: null,
       taskId: null,
       taskState: null,
+      startTime: null,
     });
   }, [id, updateNodeData]);
 
@@ -352,6 +385,12 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
                 onDoubleClick={() => openImagePreview((loadedOutputImage || nodeData.outputImage)!, "生成的图片")}
                 title="双击查看大图"
               />
+              {/* Timer display - always show when enabled and has time */}
+              {showTimer && elapsedTime > 0 && (
+                <div className="absolute top-2 left-2 bg-neutral-950/90 text-blue-400 text-xs font-mono px-2 py-1 rounded border border-blue-500/90 z-10">
+                  {formatElapsedTime(elapsedTime)}
+                </div>
+              )}
               {/* Loading overlay for generation */}
               {nodeData.status === "loading" && (
                 <div className="absolute inset-0 bg-neutral-900/85 rounded flex flex-col items-center justify-center gap-2">

@@ -222,6 +222,7 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         resonanceMode: true,
         systemPrompt: "",
         topP: 0.95,
+        startTime: null,
       };
     case "viduGenerate":
       return {
@@ -242,6 +243,7 @@ function createDefaultNodeData(type: NodeType): WorkflowNodeData {
         resonanceMode: true,
         systemPrompt: "",
         topP: 0.95,
+        startTime: null,
       };
     case "llmGenerate":
       return {
