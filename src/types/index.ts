@@ -47,6 +47,17 @@ export type ViduResolution = "1080p" | "2K" | "4K";
 // VIDU Task State
 export type ViduTaskState = "created" | "queueing" | "processing" | "success" | "failed";
 
+// AABao Task State (for async image generation)
+export type AabaoTaskState = "pending" | "processing" | "success" | "failed";
+
+// AABao Async Task Response
+export interface AabaoGenerateAsyncResponse {
+  success: boolean;
+  taskId?: string;
+  image?: string;
+  error?: string;
+}
+
 // Node Status
 export type NodeStatus = "idle" | "loading" | "complete" | "error";
 
@@ -181,6 +192,9 @@ export interface NanoBananaNodeData extends BaseNodeData {
   seedFixed?: boolean;     // Whether seed is fixed by user
   lastSeed?: number;       // Last used seed (for display)
   cached?: boolean;        // Whether current output is from cache
+  // AABao Async Task fields
+  taskId?: string | null;      // AABao task ID for polling (when provider === "aabao")
+  taskState?: AabaoTaskState | null;  // Current task state
 }
 
 // VIDU Generate Node Data (Image Generation via VIDU API)

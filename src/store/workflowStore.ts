@@ -1096,6 +1096,287 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             try {
               const nodeData = node.data as NanoBananaNodeData;
 
+              // Check if using AABao provider (async mode)
+              const useAabao = nodeData.provider === "aabao";
+
+              if (useAabao) {
+                // ========== AABao 异步模式 ==========
+                logger.info('api.aabao', 'Using AABao async mode', {
+                  nodeId: node.id,
+                  model: nodeData.model,
+                  resolution: nodeData.resolution,
+                });
+
+                // Generate or use existing seed (same logic as sync)
+                const currentSeed = nodeData.seedFixed && nodeData.lastSeed
+                  ? nodeData.lastSeed
+                  : Math.floor(Math.random() * 2147483647);
+
+                // Check cache if seed is fixed
+                if (nodeData.seedFixed && nodeData.lastSeed) {
+                  const cacheKeyData: CacheKeyData = {
+                    nodeId: node.id,
+                    nodeType: "nanoBanana",
+                    inputs: {
+                      model: nodeData.model,
+                      resolution: nodeData.resolution,
+                      aspectRatio: nodeData.aspectRatio,
+                      prompt: text,
+                      imageCount: images.length,
+                      provider: "aabao",
+                    },
+                    seed: nodeData.lastSeed,
+                  };
+
+                  const cached = await cacheManager.get(cacheKeyData);
+                  if (cached) {
+                    logger.info('cache.hit', 'Using cached AABao generation', {
+                      nodeId: node.id,
+                      seed: nodeData.lastSeed,
+                    });
+
+                    updateNodeData(node.id, {
+                      outputImage: cached.output.image,
+                      status: "complete",
+                      error: null,
+                      cached: true,
+                    });
+
+                    break; // Skip async call
+                  }
+                }
+
+                // Update seed before API call
+                updateNodeData(node.id, {
+                  lastSeed: currentSeed,
+                  seed: currentSeed,
+                });
+
+                // Call async API
+                const requestPayload = {
+                  images,
+                  prompt: text,
+                  provider: "aabao" as const,
+                  aspectRatio: nodeData.aspectRatio,
+                  resolution: nodeData.resolution,
+                  model: nodeData.model,
+                  resonanceMode: nodeData.resonanceMode ?? true,
+                  ...(nodeData.systemPrompt && { systemPrompt: nodeData.systemPrompt }),
+                  ...(nodeData.topP !== undefined && { topP: nodeData.topP }),
+                };
+
+                const response = await fetch("/api/generate-aabao-async", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(requestPayload),
+                });
+
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                  try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = errorJson.error || errorMessage;
+                  } catch {
+                    if (errorText) errorMessage += ` - ${errorText.substring(0, 200)}`;
+                  }
+
+                  logger.error('api.error', 'AABao async API request failed', {
+                    nodeId: node.id,
+                    status: response.status,
+                    errorMessage,
+                  });
+
+                  updateNodeData(node.id, {
+                    status: "error",
+                    error: errorMessage,
+                    taskState: "failed",
+                  });
+                  set({ isRunning: false, currentNodeId: null });
+                  await logger.endSession();
+                  return;
+                }
+
+                const result = await response.json();
+
+                if (result.success && result.taskId) {
+                  logger.info('api.aabao', 'AABao task created successfully, polling for result', {
+                    nodeId: node.id,
+                    taskId: result.taskId,
+                  });
+
+                  updateNodeData(node.id, {
+                    taskId: result.taskId,
+                    taskState: "pending",
+                  });
+
+                  // Poll task state (reference VIDU implementation)
+                  let pollAttempts = 0;
+                  const maxPollAttempts = 300; // 10 minutes
+                  const pollInterval = 2000; // 2 seconds
+
+                  while (pollAttempts < maxPollAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, pollInterval));
+                    pollAttempts++;
+
+                    try {
+                      const pollResponse = await fetch(`/api/aabao-task/${result.taskId}`);
+                      const pollResult = await pollResponse.json();
+
+                      // Success - image ready
+                      if (pollResult.success && pollResult.image) {
+                        logger.info('api.aabao', 'AABao task completed successfully', {
+                          nodeId: node.id,
+                          taskId: result.taskId,
+                          pollAttempts,
+                          duration: `${(pollAttempts * pollInterval / 1000).toFixed(1)}s`,
+                        });
+
+                        const timestamp = Date.now();
+                        const imageId = `${timestamp}`;
+
+                        // Save to global history
+                        get().addToGlobalHistory({
+                          image: pollResult.image,
+                          timestamp,
+                          prompt: text,
+                          aspectRatio: nodeData.aspectRatio,
+                          model: nodeData.model,
+                        });
+
+                        // Add to node's carousel history
+                        const newHistoryItem = {
+                          id: imageId,
+                          timestamp,
+                          prompt: text,
+                          aspectRatio: nodeData.aspectRatio,
+                          model: nodeData.model,
+                        };
+                        const updatedHistory = [newHistoryItem, ...(nodeData.imageHistory || [])];
+
+                        updateNodeData(node.id, {
+                          outputImage: pollResult.image,
+                          status: "complete",
+                          taskState: "success",
+                          taskId: result.taskId,
+                          error: null,
+                          imageHistory: updatedHistory,
+                          selectedHistoryIndex: 0,
+                        });
+
+                        // Save to cache
+                        const cacheKeyData: CacheKeyData = {
+                          nodeId: node.id,
+                          nodeType: "nanoBanana",
+                          inputs: {
+                            model: nodeData.model,
+                            resolution: nodeData.resolution,
+                            aspectRatio: nodeData.aspectRatio,
+                            prompt: text,
+                            imageCount: images.length,
+                            provider: "aabao",
+                          },
+                          seed: currentSeed,
+                        };
+                        await cacheManager.save({
+                          nodeId: node.id,
+                          nodeType: "nanoBanana",
+                          inputs: cacheKeyData.inputs,
+                          seed: currentSeed,
+                          output: {
+                            image: pollResult.image,
+                          },
+                        });
+
+                        // Track cost
+                        const generationCost = calculateGenerationCost(nodeData.model, nodeData.resolution, "aabao");
+                        get().addIncurredCost(generationCost);
+
+                        // Auto-save to generations folder if configured
+                        const genPath = get().generationsPath;
+                        if (genPath) {
+                          fetch("/api/save-generation", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              directoryPath: genPath,
+                              image: pollResult.image,
+                              prompt: text,
+                              imageId,
+                            }),
+                          }).catch((err) => {
+                            console.error("Failed to save generation:", err);
+                          });
+                        }
+
+                        break; // Exit polling loop
+                      }
+                      // Task failed
+                      else if (pollResult.error && !pollResult.error.includes("pending") && !pollResult.error.includes("processing")) {
+                        logger.error('api.aabao', 'AABao task failed', {
+                          nodeId: node.id,
+                          taskId: result.taskId,
+                          error: pollResult.error,
+                        });
+                        updateNodeData(node.id, {
+                          status: "error",
+                          error: pollResult.error,
+                          taskState: "failed",
+                          taskId: result.taskId,
+                        });
+                        set({ isRunning: false, currentNodeId: null });
+                        await logger.endSession();
+                        return;
+                      }
+                      // Still processing - update state
+                      else {
+                        const currentState = pollResult.error?.includes("pending") ? "pending" : "processing";
+                        updateNodeData(node.id, {
+                          taskState: currentState,
+                        });
+                      }
+                    } catch (pollError) {
+                      console.error(`[AABao-POLL-STORE] Poll error for node ${node.id}:`, pollError);
+                      // Continue polling on error
+                    }
+                  }
+
+                  // Polling timeout handling
+                  if (pollAttempts >= maxPollAttempts) {
+                    logger.warn('api.aabao', 'AABao task polling timeout', {
+                      nodeId: node.id,
+                      taskId: result.taskId,
+                    });
+                    updateNodeData(node.id, {
+                      status: "error",
+                      error: "Task timeout after 10 minutes",
+                      taskState: "failed",
+                    });
+                    set({ isRunning: false, currentNodeId: null });
+                    await logger.endSession();
+                    return;
+                  }
+
+                } else {
+                  logger.error('api.error', 'AABao async API task creation failed', {
+                    nodeId: node.id,
+                    error: result.error,
+                  });
+                  updateNodeData(node.id, {
+                    status: "error",
+                    error: result.error || "Task creation failed",
+                    taskState: "failed",
+                  });
+                  set({ isRunning: false, currentNodeId: null });
+                  await logger.endSession();
+                  return;
+                }
+
+              } else {
+                // ========== Google 同步模式（现有逻辑）==========
+
               // Generate or use existing seed
               const currentSeed = nodeData.seedFixed && nodeData.lastSeed
                 ? nodeData.lastSeed
@@ -1112,6 +1393,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                     aspectRatio: nodeData.aspectRatio,
                     prompt: text,
                     imageCount: images.length,
+                    provider: "google", // Explicitly set for sync mode
                   },
                   seed: nodeData.lastSeed,
                 };
@@ -1249,6 +1531,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                     aspectRatio: nodeData.aspectRatio,
                     prompt: text,
                     imageCount: images.length,
+                    provider: "google", // Explicitly set for sync mode
                   },
                   seed: currentSeed,
                 };
@@ -1296,6 +1579,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                 await logger.endSession();
                 return;
               }
+              } // End of Google sync mode (else block)
             } catch (error) {
               let errorMessage = "Generation failed";
               if (error instanceof DOMException && error.name === 'AbortError') {

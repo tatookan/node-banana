@@ -168,12 +168,33 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
   );
 
   const handleClearImage = useCallback(() => {
-    updateNodeData(id, { outputImage: null, status: "idle", error: null });
+    updateNodeData(id, {
+      outputImage: null,
+      status: "idle",
+      error: null,
+      taskId: null,
+      taskState: null,
+    });
   }, [id, updateNodeData]);
 
   const handleRegenerate = useCallback(() => {
     regenerateNode(id);
   }, [id, regenerateNode]);
+
+  // Get status display text for AABao async mode
+  const getStatusText = useCallback(() => {
+    if (nodeData.status === "loading") {
+      if (nodeData.provider === "aabao") {
+        if (nodeData.taskState === "pending") return "队列中...";
+        if (nodeData.taskState === "processing") return "处理中...";
+      }
+      return "处理中...";
+    }
+    if (nodeData.status === "error") {
+      return nodeData.error || "失败";
+    }
+    return "运行以生成";
+  }, [nodeData.status, nodeData.provider, nodeData.taskState, nodeData.error]);
 
   const loadImageById = useCallback(async (imageId: string) => {
     if (!generationsPath) {
@@ -333,7 +354,7 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
               />
               {/* Loading overlay for generation */}
               {nodeData.status === "loading" && (
-                <div className="absolute inset-0 bg-neutral-900/70 rounded flex items-center justify-center">
+                <div className="absolute inset-0 bg-neutral-900/85 rounded flex flex-col items-center justify-center gap-2">
                   <svg
                     className="w-6 h-6 animate-spin text-white"
                     fill="none"
@@ -353,6 +374,10 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
+                  <span className="text-white text-xs">{getStatusText()}</span>
+                  {nodeData.provider === "aabao" && nodeData.taskId && (
+                    <span className="text-neutral-400 text-[10px]">任务: {nodeData.taskId.slice(-8)}</span>
+                  )}
                 </div>
               )}
               {/* Loading overlay for carousel navigation */}
@@ -422,27 +447,33 @@ export function NanoBananaNode({ id, data, selected }: NodeProps<NanoBananaNodeT
             )}
           </>
         ) : (
-          <div className="w-full flex-1 min-h-[112px] border border-dashed border-neutral-600 rounded flex flex-col items-center justify-center">
+          <div className="w-full flex-1 min-h-[112px] border border-dashed border-neutral-600 rounded flex flex-col items-center justify-center gap-1">
             {nodeData.status === "loading" ? (
-              <svg
-                className="w-4 h-4 animate-spin text-neutral-400"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
+              <>
+                <svg
+                  className="w-4 h-4 animate-spin text-neutral-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                <span className="text-neutral-400 text-[10px]">{getStatusText()}</span>
+                {nodeData.provider === "aabao" && nodeData.taskId && (
+                  <span className="text-neutral-500 text-[9px]">{nodeData.taskId.slice(-8)}</span>
+                )}
+              </>
             ) : nodeData.status === "error" ? (
               <span className="text-[10px] text-red-400 text-center px-2">
                 {nodeData.error || "失败"}

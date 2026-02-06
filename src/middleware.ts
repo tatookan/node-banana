@@ -13,6 +13,7 @@ const publicRoutes = [
   '/api/vidu-callback', // VIDU API callback endpoint (called by Cloudflare Worker)
   '/api/health', // Health check endpoint (for Cloudflare Worker monitoring)
   '/worker-health', // Worker 专用健康检查端点（不在 /api/ 路径下）
+  '/api/test-aabao-direct', // AABao backend → Worker test endpoint (for debugging)
 ];
 
 export function middleware(request: NextRequest) {
