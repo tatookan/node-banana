@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
       imageUrl = body.creations[0].url || body.creations[0].watermarked_url;
     }
 
+    console.log(`[VIDU-CALLBACK:${requestId}] Image URL from VIDU: ${imageUrl || 'none'}`);
+
     // Build our internal ViduTaskResult format
     const taskResult: ViduTaskResult = {
       task_id: taskId,
@@ -99,6 +101,48 @@ export async function POST(request: NextRequest) {
     // Get the stored task info to retrieve userId
     const storedTask = taskResults.get(taskId);
     const userId = storedTask?.userId;
+
+    // ===== NEW: Download image and upload to R2 when task succeeds =====
+    if (body.state === "success" && taskResult.image_url && userId) {
+      console.log(`[VIDU-CALLBACK:${requestId}] ✓ Task succeeded, downloading image from VIDU...`);
+
+      try {
+        // Fetch image from VIDU URL
+        const imageResponse = await fetch(taskResult.image_url);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        }
+
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const imageBase64 = Buffer.from(imageBuffer).toString("base64");
+        const dataUrl = `data:image/png;base64,${imageBase64}`;
+
+        console.log(`[VIDU-CALLBACK:${requestId}] Image downloaded: ${(dataUrl.length / 1024).toFixed(2)}KB`);
+        console.log(`[VIDU-CALLBACK:${requestId}] Uploading to R2...`);
+
+        // Upload to R2
+        const { uploadGeneratedImage } = await import('@/lib/r2-upload');
+        const uploadResult = await uploadGeneratedImage(userId, dataUrl, {
+          prompt: taskResult.prompt,
+          model: 'vidu',
+          aspectRatio: (taskResult.aspect_ratio || '1:1') as any,
+          resolution: (taskResult.resolution || '1080p') as any,
+        });
+
+        if (uploadResult.success && uploadResult.imageRef) {
+          console.log(`[VIDU-CALLBACK:${requestId}] ✓✓✓ R2 UPLOAD SUCCESS: ${uploadResult.imageRef}`);
+          taskResult.imageRef = uploadResult.imageRef;
+          // Clear image_url since we have R2 ref now
+          taskResult.image_url = undefined;
+        } else {
+          console.error(`[VIDU-CALLBACK:${requestId}] ⚠️ R2 upload failed, keeping VIDU URL:`, uploadResult.error);
+          taskResult._r2UploadError = uploadResult.error;
+        }
+      } catch (r2Error) {
+        console.error(`[VIDU-CALLBACK:${requestId}] ⚠️ Image download/upload failed:`, r2Error);
+        taskResult._r2UploadError = r2Error instanceof Error ? r2Error.message : String(r2Error);
+      }
+    }
 
     // Record usage if task succeeded and we have userId
     if (body.state === "success" && userId) {

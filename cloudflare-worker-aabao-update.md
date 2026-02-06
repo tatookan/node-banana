@@ -43,6 +43,16 @@ Cloudflare Worker: https://nano.mygogogo1.de5.net
      类型: Secret (加密)
      ```
 
+5. **（付费版）配置 R2 绑定** - 可选，用于性能优化
+   - 升级到 Workers Paid Plan ($5/月)
+   - 在 Worker 的 Settings → Variables → R2 Buckets
+   - 添加 R2 Bucket 绑定：
+     ```
+     Variable name: R2_BUCKET
+     Bucket name: bananan
+     ```
+   - 这将启用 Worker 直接上传到 R2（性能提升 50%）
+
 ### 方法 2: 通过 Wrangler CLI
 
 ```bash
@@ -109,7 +119,8 @@ wrangler deploy
 |--------|------|----------|
 | `AABAO_API_HOST` | AABao API 地址 | 可选 (默认: https://api.aabao.top) |
 | `AABAO_API_KEY` | AABao API Key | 可选 (请求头可携带) |
-| `GOOGLE_API_KEY` | Google API Key | 可有 (原有配置) |
+| `GOOGLE_API_KEY` | Google API Key | 可选 (原有配置) |
+| `R2_BUCKET` | R2 存储桶绑定（付费版） | 可选（性能优化） |
 
 ## 请求路由识别
 

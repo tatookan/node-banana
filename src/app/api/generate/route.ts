@@ -200,8 +200,9 @@ async function generateWithAabao(
   resonanceMode?: boolean,
   systemPrompt?: string,
   topP?: number,
-  requestId?: string
-): Promise<string> {
+  requestId?: string,
+  userId?: number | null  // NEW: Pass userId for Worker R2 upload
+): Promise<{ dataUrl: string; imageRef?: string }> {
   // Use the same Cloudflare Worker as Google (with /aabao/ path prefix)
   const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
 
@@ -282,6 +283,11 @@ async function generateWithAabao(
       "X-API-Provider": "aabao",  // Tells Worker to route to AABao
     };
 
+    // Add X-User-Id for Worker R2 upload (Paid plan feature)
+    if (userId) {
+      headers["X-User-Id"] = String(userId);
+    }
+
     // Fetch request through Worker
     const response = await fetch(endpoint, {
       method: "POST",
@@ -308,20 +314,47 @@ async function generateWithAabao(
       throw new Error(`AABao API error (${response.status}): ${JSON.stringify(errorData)}`);
     }
 
-    console.log(`[API:${requestId}] Parsing JSON response (this may take a while for large images)...`);
-    // Read as text first for better progress tracking, then parse
+    // Check if Worker returned imageRef (Paid plan: Worker already processed JSON and uploaded to R2)
+    const isWorkerFallback = response.headers.get('X-Worker-Fallback') === 'json-only';
+
+    // Read response body (can only read once!)
     const responseText = await response.text();
+
+    // First, try to parse as Worker response (with imageRef)
+    let dataUrl: string;
+    let imageRef: string | undefined;
+
+    try {
+      const result = JSON.parse(responseText);
+
+      // Check if Worker processed and uploaded to R2
+      if (result.success && result.imageRef && !isWorkerFallback) {
+        console.log(`[API:${requestId}] ✓ Worker processed JSON and uploaded to R2: ${result.imageRef}`);
+        if (result._workerMetrics) {
+          console.log(`[API:${requestId}]   Worker metrics:`, result._workerMetrics);
+        }
+        // Return empty dataUrl (Worker already has the image) and the imageRef
+        return { dataUrl: '', imageRef: result.imageRef };
+      }
+    } catch (e) {
+      // Not a Worker response, fall through to regular JSON parsing
+      console.log(`[API:${requestId}] Not a Worker response, parsing JSON locally...`);
+    }
+
+    // Fallback: Worker didn't process, parse JSON locally
+    console.log(`[API:${requestId}] Parsing JSON response (this may take a while for large images)...`);
     console.log(`[API:${requestId}] Response body received, size: ${(responseText.length / 1024 / 1024).toFixed(2)}MB`);
     const data = JSON.parse(responseText);
     console.log(`[API:${requestId}] JSON parsed, extracting image...`);
 
-    const dataUrl = extractImageFromResponse(data, requestId || '');
-    if (!dataUrl) {
+    const extractedDataUrl = extractImageFromResponse(data, requestId || '');
+    if (!extractedDataUrl) {
       throw new Error("No image in AABao API response");
     }
+    dataUrl = extractedDataUrl;
 
     console.log(`[API:${requestId}] ✓ Image extracted successfully, size: ${(dataUrl.length / 1024).toFixed(2)}KB`);
-    return dataUrl;
+    return { dataUrl };
   } catch (error) {
     clearTimeout(timeoutId);
 
@@ -442,16 +475,21 @@ export async function POST(request: NextRequest) {
 
     // Route to appropriate provider
     let dataUrl: string;
+    let workerImageRef: string | undefined;  // NEW: Worker may return R2 ref directly
+
     if (provider === "google") {
       dataUrl = await generateWithGoogle(
         images, finalPrompt, model, aspectRatio, resolution,
         useGoogleSearch, resonanceMode, systemPrompt, topP, requestId
       );
     } else if (provider === "aabao") {
-      dataUrl = await generateWithAabao(
+      const result = await generateWithAabao(
         images, finalPrompt, model, aspectRatio, resolution,
-        useGoogleSearch, resonanceMode, systemPrompt, topP, requestId
+        useGoogleSearch, resonanceMode, systemPrompt, topP, requestId,
+        userId  // Pass userId for Worker R2 upload
       );
+      dataUrl = result.dataUrl;
+      workerImageRef = result.imageRef;
     } else {
       console.error(`[API:${requestId}] ❌ Unknown provider: ${provider}`);
       return NextResponse.json<GenerateResponse>(
@@ -463,30 +501,60 @@ export async function POST(request: NextRequest) {
     const dataUrlSizeKB = (dataUrl.length / 1024).toFixed(2);
     console.log(`[API:${requestId}] Data URL size: ${dataUrlSizeKB}KB`);
 
-    const responsePayload = { success: true, image: dataUrl };
-    const responseSize = JSON.stringify(responsePayload).length;
-    const responseSizeMB = (responseSize / (1024 * 1024)).toFixed(2);
-    console.log(`[API:${requestId}] Total response payload size: ${responseSizeMB}MB`);
+    // Check if Worker already uploaded to R2 (Paid plan feature)
+    if (workerImageRef) {
+      console.log(`[API:${requestId}] ✓✓✓ Worker already uploaded to R2: ${workerImageRef}`);
+      console.log(`[API:${requestId}] Skipping local R2 upload, returning Worker's R2 ref`);
 
-    if (responseSize > 4.5 * 1024 * 1024) {
-      console.warn(`[API:${requestId}] ⚠️ Response size (${responseSizeMB}MB) is approaching Next.js 5MB limit!`);
-    }
-
-    console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Returning image ✓✓✓`);
-
-    // Upload to R2 in background (fire-and-forget, doesn't block response)
-    if (token) {
-      const userId = await getUserIdFromToken(token);
+      // Record usage
       if (userId) {
         const actualResolution: Resolution = resolution || "1K";
         const providerValue = provider || "google";
+        try {
+          await recordImageGeneration(userId, model, actualResolution, 1, providerValue);
+
+          // Update quota usage
+          const { updateQuotaUsage } = await import('@/lib/quotaManager');
+          const { calculateGenerationCost } = await import('@/utils/costCalculator');
+          const actualCost = calculateGenerationCost(model, actualResolution, providerValue);
+          await updateQuotaUsage(userId, actualCost);
+          console.log(`[API:${requestId}] ✓ Quota updated:`, { userId, cost: actualCost });
+        } catch (err) {
+          console.error(`[API:${requestId}] ⚠️ Usage record error:`, err);
+        }
+      }
+
+      const responsePayload: GenerateResponse = {
+        success: true,
+        imageRef: workerImageRef,
+      };
+      const responseSize = JSON.stringify(responsePayload).length;
+      const responseSizeKB = (responseSize / 1024).toFixed(2);
+      console.log(`[API:${requestId}] Response size: ${responseSizeKB}KB (R2 ref)`);
+      console.log(`[API:${requestId}] ✓✓✓ COMPLETE (Worker R2 mode)`);
+
+      return NextResponse.json<GenerateResponse>(responsePayload);
+    }
+
+    // Fallback: Worker didn't upload, need to upload locally
+    console.log(`[API:${requestId}] ✓✓✓ SUCCESS - Generated image, uploading to R2 locally...`);
+
+    // ===== NEW: Upload to R2 synchronously and return URL reference =====
+    let responsePayload: GenerateResponse;
+    let responseSize: number;
+
+    if (token) {
+      if (userId) {
+        const actualResolution: Resolution = resolution || "1K";
+        const providerValue = provider || "google";
+
+        // Record usage first
         await recordImageGeneration(userId, model, actualResolution, 1, providerValue);
 
-        // Update quota usage after successful generation
+        // Update quota usage
         try {
           const { updateQuotaUsage } = await import('@/lib/quotaManager');
           const { calculateGenerationCost } = await import('@/utils/costCalculator');
-          const providerValue = provider || "google";
           const actualCost = calculateGenerationCost(model, actualResolution, providerValue);
           await updateQuotaUsage(userId, actualCost);
           console.log(`[API:${requestId}] ✓ Quota updated:`, { userId, cost: actualCost });
@@ -494,14 +562,65 @@ export async function POST(request: NextRequest) {
           console.error(`[API:${requestId}] ⚠️ Quota update error:`, quotaError);
         }
 
-        uploadGeneratedImageInBackground(userId, dataUrl, {
-          prompt,
-          model,
-          aspectRatio,
-          resolution: actualResolution,
-        });
+        // Upload to R2 synchronously
+        try {
+          const { uploadGeneratedImage } = await import('@/lib/r2-upload');
+          console.log(`[API:${requestId}] Uploading to R2...`);
+
+          const uploadResult = await uploadGeneratedImage(userId, dataUrl, {
+            prompt,
+            model,
+            aspectRatio,
+            resolution: actualResolution,
+          });
+
+          if (uploadResult.success && uploadResult.imageRef) {
+            // Success: Return R2 reference
+            console.log(`[API:${requestId}] ✓✓✓ R2 UPLOAD SUCCESS: ${uploadResult.imageRef}`);
+
+            responsePayload = {
+              success: true,
+              imageRef: uploadResult.imageRef,  // "r2:userId/generation/xxx.png"
+            };
+            responseSize = JSON.stringify(responsePayload).length;
+            const responseSizeKB = (responseSize / 1024).toFixed(2);
+            console.log(`[API:${requestId}] Response size: ${responseSizeKB}KB (R2 ref vs ${dataUrlSizeKB}KB Base64)`);
+          } else {
+            // Fallback: R2 upload failed, return Base64
+            console.error(`[API:${requestId}] ⚠️⚠️ R2 upload failed, using Base64 fallback:`, uploadResult.error);
+
+            responsePayload = {
+              success: true,
+              image: dataUrl,  // Base64 fallback
+              _r2UploadError: uploadResult.error,
+            };
+            responseSize = JSON.stringify(responsePayload).length;
+          }
+        } catch (r2Error) {
+          // Exception during R2 upload: fallback to Base64
+          console.error(`[API:${requestId}] ⚠️⚠️ R2 upload exception, using Base64 fallback:`, r2Error);
+
+          responsePayload = {
+            success: true,
+            image: dataUrl,  // Base64 fallback
+            _r2UploadError: r2Error instanceof Error ? r2Error.message : String(r2Error),
+          };
+          responseSize = JSON.stringify(responsePayload).length;
+        }
+      } else {
+        // No token/user: return Base64 directly
+        console.warn(`[API:${requestId}] ⚠️ No user token, returning Base64 directly`);
+        responsePayload = { success: true, image: dataUrl };
+        responseSize = JSON.stringify(responsePayload).length;
       }
+    } else {
+      // No token: return Base64
+      responsePayload = { success: true, image: dataUrl };
+      responseSize = JSON.stringify(responsePayload).length;
     }
+
+    const responseSizeMB = (responseSize / (1024 * 1024)).toFixed(2);
+    console.log(`[API:${requestId}] Total response payload size: ${responseSizeMB}MB`);
 
     const response = NextResponse.json<GenerateResponse>(responsePayload);
     response.headers.set('Content-Type', 'application/json');

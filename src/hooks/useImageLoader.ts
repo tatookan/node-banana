@@ -22,6 +22,13 @@ import { useGenerationsPath } from "@/store/selectors";
 const imageCache = new Map<string, string>();
 
 /**
+ * 检查是否是 R2 图片引用
+ */
+function isR2Ref(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.startsWith("r2:");
+}
+
+/**
  * 检查是否是 Base64 图片
  */
 function isBase64Image(value: string | null | undefined): boolean {
@@ -42,6 +49,65 @@ export function useImageLoader() {
   const generationsPath = useGenerationsPath();
   const { loadImage: loadFromIndexedDB, saveImage: saveToIndexedDB } = useImageStore();
   const [loadingStates, setLoadingStates] = useState<Set<string>>(new Set());
+
+  /**
+   * 从 R2 加载图片
+   */
+  const loadFromR2 = useCallback(async (
+    imageRef: string
+  ): Promise<string | null> => {
+    if (!isR2Ref(imageRef)) {
+      return null;
+    }
+
+    try {
+      console.log(`[ImageLoader] Loading from R2: ${imageRef}`);
+
+      // Resolve R2 ref via API endpoint
+      const resolveResponse = await fetch("/api/resolve-image-ref", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageRef }),
+      });
+
+      if (!resolveResponse.ok) {
+        const errorText = await resolveResponse.text();
+        console.error(`[ImageLoader] Failed to resolve R2 ref:`, errorText);
+        return null;
+      }
+
+      const resolveResult = await resolveResponse.json();
+      if (!resolveResult.success || !resolveResult.presignedUrl) {
+        console.error(`[ImageLoader] Failed to resolve R2 ref:`, resolveResult.error);
+        return null;
+      }
+
+      // Use proxy endpoint to avoid CORS issues
+      const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(resolveResult.presignedUrl)}`;
+      console.log(`[ImageLoader] Fetching via proxy: ${proxyUrl.substring(0, 80)}...`);
+
+      const imageResponse = await fetch(proxyUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`R2 proxy fetch failed: ${imageResponse.statusText}`);
+      }
+
+      const blob = await imageResponse.blob();
+
+      // Convert to Base64 data URL
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      console.log(`[ImageLoader] ✓ Loaded from R2: ${(dataUrl.length / 1024).toFixed(2)}KB`);
+      return dataUrl;
+    } catch (error) {
+      console.error(`[ImageLoader] Failed to load from R2:`, error);
+      return null;
+    }
+  }, []);
 
   /**
    * 从服务器加载图片（现有的 imageRef 系统）
@@ -90,7 +156,8 @@ export function useImageLoader() {
    * 智能加载图片
    * 1. 如果是 Base64，直接返回
    * 2. 如果是图片 ID，从 IndexedDB 加载
-   * 3. 如果有 imageRef，从服务器加载并缓存
+   * 3. 如果是 R2 引用（r2:），从 R2 加载
+   * 4. 如果有 imageRef，从服务器加载并缓存
    */
   const loadImage = useCallback(async (
     imageData: string | null | undefined,
@@ -140,7 +207,33 @@ export function useImageLoader() {
       return null;
     }
 
-    // 3. 如果只有 imageRef（服务器存储）
+    // 3. 如果是 R2 引用
+    if (imageRef && isR2Ref(imageRef)) {
+      // 检查内存缓存
+      if (imageCache.has(imageRef)) {
+        return imageCache.get(imageRef)!;
+      }
+
+      // 从 IndexedDB 加载
+      const fromDB = await loadFromIndexedDB(imageRef);
+      if (fromDB) {
+        imageCache.set(imageRef, fromDB);
+        return fromDB;
+      }
+
+      // 从 R2 加载
+      const fromR2 = await loadFromR2(imageRef);
+      if (fromR2) {
+        // 缓存到内存和 IndexedDB
+        imageCache.set(imageRef, fromR2);
+        await saveToIndexedDB(fromR2, imageRef);
+        return fromR2;
+      }
+
+      return null;
+    }
+
+    // 4. 如果只有 imageRef（服务器存储）
     if (imageRef && !imageData) {
       // 检查内存缓存
       if (imageCache.has(imageRef)) {
@@ -165,7 +258,7 @@ export function useImageLoader() {
     }
 
     return null;
-  }, [loadFromIndexedDB, saveToIndexedDB, loadFromServer]);
+  }, [loadFromIndexedDB, saveToIndexedDB, loadFromR2, loadFromServer]);
 
   /**
    * 批量加载图片

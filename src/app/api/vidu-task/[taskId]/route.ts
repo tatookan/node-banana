@@ -125,6 +125,50 @@ export async function GET(
 
           console.log(`[VIDU-POLL:${requestId}] Image fetched: ${(dataUrl.length / 1024).toFixed(2)}KB`);
 
+          // ===== NEW: Upload to R2 in dev mode too =====
+          let responseData: ViduGenerateResponse;
+
+          if (userId) {
+            try {
+              const { uploadGeneratedImage } = await import('@/lib/r2-upload');
+              console.log(`[VIDU-POLL:${requestId}] Uploading to R2...`);
+
+              const uploadResult = await uploadGeneratedImage(userId, dataUrl, {
+                prompt: viduResponse.prompt,
+                model: 'vidu',
+                aspectRatio: (viduResponse.aspect_ratio || '1:1') as any,
+                resolution: (viduResponse.resolution || '1080p') as any,
+              });
+
+              if (uploadResult.success && uploadResult.imageRef) {
+                console.log(`[VIDU-POLL:${requestId}] ✓ R2 upload SUCCESS: ${uploadResult.imageRef}`);
+                responseData = {
+                  success: true,
+                  imageRef: uploadResult.imageRef,
+                };
+              } else {
+                console.error(`[VIDU-POLL:${requestId}] ⚠️ R2 upload failed, using Base64:`, uploadResult.error);
+                responseData = {
+                  success: true,
+                  image: dataUrl,
+                  _r2UploadError: uploadResult.error,
+                };
+              }
+            } catch (r2Error) {
+              console.error(`[VIDU-POLL:${requestId}] ⚠️ R2 upload exception, using Base64:`, r2Error);
+              responseData = {
+                success: true,
+                image: dataUrl,
+                _r2UploadError: r2Error instanceof Error ? r2Error.message : String(r2Error),
+              };
+            }
+          } else {
+            responseData = {
+              success: true,
+              image: dataUrl,
+            };
+          }
+
           // Record usage for development mode (polling)
           if (userId) {
             const hasImages = (viduResponse.images || []).length > 0;
@@ -145,10 +189,7 @@ export async function GET(
           // Cache the result
           callbackModule.storeTaskResult(taskId, viduResponse);
 
-          return NextResponse.json<ViduGenerateResponse>({
-            success: true,
-            image: dataUrl,
-          });
+          return NextResponse.json<ViduGenerateResponse>(responseData);
         } catch (fetchError) {
           console.error(`[VIDU-POLL:${requestId}] ❌ Failed to fetch image:`, fetchError);
           return NextResponse.json<ViduGenerateResponse>(
@@ -198,13 +239,23 @@ export async function GET(
 async function handleTaskResult(result: ViduTaskResult, requestId: string): Promise<NextResponse<ViduGenerateResponse>> {
   console.log(`[VIDU-POLL:${requestId}] Task result:`);
   console.log(`[VIDU-POLL:${requestId}]   - state: ${result.state}`);
+  console.log(`[VIDU-POLL:${requestId}]   - has imageRef: ${!!result.imageRef}`);
   console.log(`[VIDU-POLL:${requestId}]   - has image_url: ${!!result.image_url}`);
   console.log(`[VIDU-POLL:${requestId}]   - has error: ${!!result.error}`);
 
   // Handle different task states
   if (result.state === "success") {
-    if (result.image_url) {
-      console.log(`[VIDU-POLL:${requestId}] ✓✓✓ TASK SUCCESS - Fetching image ✓✓✓`);
+    // ===== NEW: Check for R2 reference first =====
+    if (result.imageRef) {
+      console.log(`[VIDU-POLL:${requestId}] ✓✓✓ TASK SUCCESS - Returning R2 ref ✓✓✓`);
+      return NextResponse.json<ViduGenerateResponse>({
+        success: true,
+        imageRef: result.imageRef,
+      });
+    }
+    // Fallback: fetch from VIDU URL if no R2 ref
+    else if (result.image_url) {
+      console.log(`[VIDU-POLL:${requestId}] ✓✓✓ TASK SUCCESS - Fetching image from VIDU URL ✓✓✓`);
 
       // Fetch the image from URL and convert to base64
       return fetch(result.image_url)
@@ -232,7 +283,7 @@ async function handleTaskResult(result: ViduTaskResult, requestId: string): Prom
           );
         });
     } else {
-      console.warn(`[VIDU-POLL:${requestId}] ⚠️ Task success but no image_url`);
+      console.warn(`[VIDU-POLL:${requestId}] ⚠️ Task success but no imageRef or image_url`);
       return NextResponse.json<ViduGenerateResponse>(
         {
           success: false,

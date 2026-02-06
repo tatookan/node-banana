@@ -132,6 +132,9 @@ export async function POST(request: NextRequest) {
     // 将认证 token 传递给后台任务
     const authToken = token;
 
+    // ⚠️ NOTE: In serverless environments, fire-and-forget background tasks
+    // may not complete reliably. Consider using a job queue (Redis/BullMQ) or
+    // database-backed task queue for production use.
     processAabaoTask(taskId, body, userId, authToken, requestId).catch(error => {
       console.error(`[AABao-ASYNC:${requestId}] ❌ Background task failed:`, error);
       updateTaskState(taskId, "failed", {
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
     // 8. 立即返回 taskId
     // ========================================
     console.log(`[AABao-ASYNC:${requestId}] ✓✓✓ RETURNING taskId immediately ✓✓✓`);
+    console.log(`[AABao-ASYNC:${requestId}] ⚠️ WARNING: In serverless environments, background tasks may not complete reliably.`);
     console.log(`[AABao-ASYNC:${requestId}] ========================================\n`);
 
     return NextResponse.json<AabaoGenerateAsyncResponse>({
@@ -209,19 +213,66 @@ async function processAabaoTask(
 
     const result = await response.json();
 
-    if (result.success && result.image) {
-      // 成功
-      console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ✓✓✓ TASK SUCCESS ✓✓✓`);
-      console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] Image size: ${(result.image.length / 1024).toFixed(2)}KB`);
+    if (result.success) {
+      // ===== NEW: 处理 R2 引用或 Base64 =====
+      if (result.imageRef) {
+        // /api/generate 已经上传到 R2
+        console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ✓✓✓ RECEIVED R2 REF ✓✓✓`);
+        console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] R2 reference: ${result.imageRef}`);
 
-      updateTaskState(taskId, "success", {
-        image: result.image,
-      });
+        updateTaskState(taskId, "success", {
+          imageRef: result.imageRef,
+          image: undefined,
+        });
+      } else if (result.image) {
+        // 降级：/api/generate 返回 Base64，尝试上传到 R2
+        console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ⚠️ RECEIVED BASE64, uploading to R2...`);
+        console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] Base64 size: ${(result.image.length / 1024).toFixed(2)}KB`);
+
+        try {
+          const { uploadGeneratedImage } = await import('@/lib/r2-upload');
+
+          const uploadResult = await uploadGeneratedImage(userId, result.image, {
+            prompt: requestBody.prompt,
+            model: requestBody.model || 'nano-banana',
+            aspectRatio: requestBody.aspectRatio,
+            resolution: requestBody.resolution,
+          });
+
+          if (uploadResult.success && uploadResult.imageRef) {
+            console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ✓ R2 upload SUCCESS: ${uploadResult.imageRef}`);
+            updateTaskState(taskId, "success", {
+              imageRef: uploadResult.imageRef,
+            });
+          } else {
+            // R2 上传失败，使用 Base64
+            console.error(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ⚠️ R2 upload failed, using Base64:`, uploadResult.error);
+            updateTaskState(taskId, "success", {
+              image: result.image,
+              _r2UploadError: uploadResult.error,
+            });
+          }
+        } catch (r2Error) {
+          // R2 上传异常，使用 Base64
+          console.error(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ⚠️ R2 upload exception, using Base64:`, r2Error);
+          updateTaskState(taskId, "success", {
+            image: result.image,
+            _r2UploadError: r2Error instanceof Error ? r2Error.message : String(r2Error),
+          });
+        }
+      } else {
+        // 既没有 imageRef 也没有 image（异常情况）
+        console.error(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ❌ Success but no image data`);
+        updateTaskState(taskId, "failed", {
+          error: "Generation succeeded but no image returned",
+        });
+        return;
+      }
 
       // 记录使用量
       try {
         const { recordImageGeneration } = await import('@/lib/usageTracker');
-        await recordImageGeneration(userId, requestBody.model as ModelType, requestBody.resolution as Resolution);
+        await recordImageGeneration(userId, requestBody.model as ModelType, requestBody.resolution as Resolution, 1, requestBody.provider || 'aabao');
         console.log(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ✓ Usage recorded`);
       } catch (recordError) {
         console.error(`[AABao-ASYNC:${parentRequestId}] [BG-PROCESS] ⚠️ Failed to record usage:`, recordError);

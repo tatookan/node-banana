@@ -21,8 +21,10 @@ export interface AabaoTaskResult {
   createdAt: number;
   completedAt?: number;
   userId: number;
-  image?: string;
+  image?: string;       // Legacy: Base64 (fallback only)
+  imageRef?: string;    // NEW: R2 引用 "r2:userId/generation/xxx.png"
   error?: string;
+  _r2UploadError?: string;  // Debug: R2 失败原因
   requestParams: {
     model: ModelType;
     resolution?: Resolution;
@@ -56,6 +58,14 @@ export function storeTaskResult(taskId: string, result: AabaoTaskResult): void {
  */
 export function getTaskResult(taskId: string): AabaoTaskResult | null {
   return taskResults.get(taskId) || null;
+}
+
+/**
+ * 获取缓存大小（用于调试）
+ * Get cache size for debugging
+ */
+export function getCacheSize(): number {
+  return taskResults.size;
 }
 
 /**

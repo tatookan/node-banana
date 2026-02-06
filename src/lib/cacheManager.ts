@@ -26,7 +26,8 @@ export interface CachedGeneration {
   nodeType: "nanoBanana" | "llmGenerate";
   inputs: CacheKeyData["inputs"];
   output: {
-    image?: string;    // Base64 data URL
+    image?: string;    // Base64 data URL (fallback)
+    imageRef?: string; // R2 引用 "r2:userId/generation/xxx.png"
     text?: string;     // Generated text
   };
   timestamp: number;   // When generated

@@ -54,8 +54,10 @@ export type AabaoTaskState = "pending" | "processing" | "success" | "failed";
 export interface AabaoGenerateAsyncResponse {
   success: boolean;
   taskId?: string;
-  image?: string;
+  image?: string;       // Legacy: Base64 (fallback only)
+  imageRef?: string;    // NEW: R2 引用
   error?: string;
+  _r2UploadError?: string;  // Debug: R2 失败原因
 }
 
 // Node Status
@@ -348,8 +350,10 @@ export interface GenerateRequest {
 
 export interface GenerateResponse {
   success: boolean;
-  image?: string;
+  image?: string;       // Legacy: Base64 (fallback only)
+  imageRef?: string;    // NEW: R2 引用 "r2:userId/generation/xxx.png"
   error?: string;
+  _r2UploadError?: string;  // Debug: R2 失败原因
 }
 
 // API Request/Response types for VIDU Image Generation
@@ -381,17 +385,21 @@ export interface ViduTaskResponse {
 }
 
 export interface ViduTaskResult extends ViduTaskResponse {
-  image_url?: string;  // Success: image URL
+  image_url?: string;  // Success: image URL (from VIDU API)
   video_url?: string;  // Success: video URL (if video generation)
+  imageRef?: string;   // NEW: R2 引用 "r2:userId/generation/xxx.png"
   error?: string;      // Failed: error message
+  _r2UploadError?: string;  // Debug: R2 失败原因
 }
 
 export interface ViduGenerateResponse {
   success: boolean;
   taskId?: string;
-  image?: string;
+  image?: string;       // Legacy: Base64 (fallback only)
+  imageRef?: string;    // NEW: R2 引用
   error?: string;
   progress?: number;  // Task progress percentage (0-100)
+  _r2UploadError?: string;  // Debug: R2 失败原因
 }
 
 // API Request/Response types for LLM Text Generation
