@@ -267,10 +267,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 应用提示词增强：根据共鸣模式设置决定是否重复3次
+    // 应用提示词增强：根据共鸣模式设置决定是否重复2次
     const finalPrompt = resonanceMode
       ? (() => {
-          const enhancementResult = enhancePrompt(prompt, 3);
+          const enhancementResult = enhancePrompt(prompt, 2);
           if (enhancementResult.wasEnhanced) {
             logPromptEnhancement(enhancementResult, `LLM:${requestId}`);
           }

@@ -30,46 +30,145 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * 预缩放图片到指定最大尺寸
+ * 保持宽高比，使用高质量插值
+ *
+ * @param img - 原始图片元素
+ * @param maxWidth - 最大宽度
+ * @param maxHeight - 最大高度
+ * @returns 缩放后的 Data URL
+ */
+function resizeImage(
+  img: HTMLImageElement,
+  maxWidth: number,
+  maxHeight: number
+): string {
+  // 计算缩放比例（保持宽高比，不放大）
+  const scale = Math.min(
+    maxWidth / img.width,
+    maxHeight / img.height,
+    1 // 不放大图片
+  );
+
+  // 如果不需要缩放，直接返回原始图片
+  if (scale >= 1) {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(img, 0, 0);
+    }
+    return canvas.toDataURL('image/webp', 1.0);
+  }
+
+  const newWidth = Math.round(img.width * scale);
+  const newHeight = Math.round(img.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = newWidth;
+  canvas.height = newHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('无法创建 canvas context');
+  }
+
+  // 使用高质量插值
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // 绘制缩放后的图片
+  ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+  // 返回 WebP 格式（100% 质量）
+  return canvas.toDataURL('image/webp', 1.0);
+}
+
+/**
  * 压缩图片到目标大小以下 - AI模型优化策略
- * 1. 首先尝试格式转换（PNG→JPEG/WebP）
- * 2. 然后降低质量参数（保持原始分辨率）
- * 3. 最后才考虑降低分辨率
+ * 1. 首先进行预缩放（如果指定了 maxWidth/maxHeight）
+ * 2. 检查预缩放后的文件大小
+ * 3. 如果仍超过目标大小，进行质量压缩
+ * 4. 最后才考虑进一步降分辨率
  */
 export async function compressImage(
   file: File,
   maxSizeBytes: number,
   maxWidth?: number,
   maxHeight?: number,
-  initialQuality: number = 0.95
+  initialQuality: number = 1.0
 ): Promise<CompressionResult> {
   const originalSize = file.size;
+  const dataUrl = await fileToDataUrl(file);
+  const originalDimensions = await getImageDimensions(dataUrl);
+
+  // ===== 新逻辑：先执行预缩放（无论文件大小）=====
+  let workingImageDataUrl = dataUrl;
+  let workingDimensions = originalDimensions;
+  let wasPreScaled = false;
+
+  if (maxWidth && maxHeight) {
+    const scale = Math.min(
+      maxWidth / originalDimensions.width,
+      maxHeight / originalDimensions.height,
+      1 // 不放大
+    );
+
+    if (scale < 1) {
+      const newWidth = Math.round(originalDimensions.width * scale);
+      const newHeight = Math.round(originalDimensions.height * scale);
+
+      console.log(`[预缩放] 原始尺寸: ${originalDimensions.width}x${originalDimensions.height}`);
+      console.log(`[预缩放] 目标尺寸: ${newWidth}x${newHeight} (最大边: ${maxWidth}px)`);
+      console.log(`[预缩放] 缩放比例: ${(scale * 100).toFixed(1)}%`);
+
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+
+      workingImageDataUrl = resizeImage(img, maxWidth, maxHeight);
+      workingDimensions = await getImageDimensions(workingImageDataUrl);
+      wasPreScaled = true;
+
+      console.log(`[预缩放] ✓ 预缩放完成: ${workingDimensions.width}x${workingDimensions.height}`);
+    } else {
+      console.log(`[预缩放] 图片无需缩放 (最大边: ${Math.max(originalDimensions.width, originalDimensions.height)}px ≤ ${maxWidth}px)`);
+    }
+  }
+
+  // 获取当前文件大小
+  const currentSize = new Blob([workingImageDataUrl]).size;
 
   // 如果文件已经符合要求，直接返回
-  if (originalSize <= maxSizeBytes) {
-    const dataUrl = await fileToDataUrl(file);
-    const dimensions = await getImageDimensions(dataUrl);
+  if (currentSize <= maxSizeBytes) {
+    console.log(`[图片压缩] 文件已符合要求 (${formatFileSize(currentSize)} ≤ ${formatFileSize(maxSizeBytes)})，无需进一步压缩`);
     return {
-      dataUrl,
+      dataUrl: workingImageDataUrl,
       originalSize,
-      compressedSize: originalSize,
-      compressionRatio: 1,
-      wasCompressed: false,
-      method: "无需压缩",
-      originalDimensions: dimensions,
-      finalDimensions: dimensions,
+      compressedSize: currentSize,
+      compressionRatio: currentSize / originalSize,
+      wasCompressed: wasPreScaled,
+      method: wasPreScaled ? '预缩放' : '无需压缩',
+      originalDimensions,
+      finalDimensions: workingDimensions,
     };
   }
+
+  // 文件仍然过大，需要质量压缩
+  console.log(`[图片压缩] 文件仍过大 (${formatFileSize(currentSize)} > ${formatFileSize(maxSizeBytes)})，开始质量压缩...`);
 
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = async () => {
-      const originalDimensions = { width: img.width, height: img.height };
-
       try {
-        // 策略1: 尝试通过格式转换和质量调整压缩（保持原始分辨率）
+        // 策略1: 尝试通过格式转换和质量调整压缩
         const qualityResult = await compressByQualityAndFormat(
           img,
-          file.type,
+          wasPreScaled ? 'image/webp' : file.type,
           maxSizeBytes,
           initialQuality
         );
@@ -90,10 +189,9 @@ export async function compressImage(
         }
 
         // 策略2: 如果质量压缩仍不够，才考虑降分辨率
-        // 使用渐进式降分辨率：每次缩小20%
         const resolutionResult = await compressByResolution(
           img,
-          file.type,
+          wasPreScaled ? 'image/webp' : file.type,
           maxSizeBytes,
           initialQuality
         );
@@ -115,7 +213,7 @@ export async function compressImage(
     };
 
     img.onerror = () => reject(new Error("无法加载图片"));
-    img.src = URL.createObjectURL(file);
+    img.src = workingImageDataUrl;
   });
 }
 
@@ -377,13 +475,13 @@ export async function compressImageForAABao(
   }
 
   // 使用高质量参数进行压缩
-  // - initialQuality: 0.92 (92%) - 高质量起始
-  // - maxDimension: 4096 - 4K 分辨率限制
+  // - initialQuality: 1.0 (100%) - 从100%质量开始
+  // - maxDimension: 2048 - 全局预缩放策略
   return compressImage(
     file,
     targetSize,
-    4096,  // maxWidth: 4K
-    4096,  // maxHeight: 4K
-    0.92   // initialQuality: 92%
+    2048,  // maxWidth: 2048px (全局预缩放)
+    2048,  // maxHeight: 2048px (全局预缩放)
+    1.0    // initialQuality: 100%
   );
 }

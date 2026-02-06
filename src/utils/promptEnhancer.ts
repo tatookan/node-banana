@@ -12,16 +12,16 @@ export interface PromptEnhancementResult {
 }
 
 /**
- * 增强提示词 - 将提示词重复3次（用逗号分隔）
+ * 增强提示词 - 将提示词重复2次（用逗号分隔）
  * 这是AI工程中的最佳实践，可以显著提升模型效果
  *
  * @param prompt - 原始提示词
- * @param repeatCount - 重复次数，默认3
+ * @param repeatCount - 重复次数，默认2
  * @returns 增强后的提示词
  */
 export function enhancePrompt(
   prompt: string,
-  repeatCount: number = 3
+  repeatCount: number = 2
 ): PromptEnhancementResult {
   // 去除首尾空白
   const trimmed = prompt.trim();
@@ -51,7 +51,7 @@ export function enhancePrompt(
  * 获取增强后的提示词（简化版）
  * 直接返回增强后的字符串，方便使用
  */
-export function getEnhancedPrompt(prompt: string, repeatCount: number = 3): string {
+export function getEnhancedPrompt(prompt: string, repeatCount: number = 2): string {
   const result = enhancePrompt(prompt, repeatCount);
   return result.enhanced;
 }
@@ -89,7 +89,7 @@ export function smartEnhance(
   const {
     minLength = 10,
     maxLength = 500,
-    repeatCount = 3,
+    repeatCount = 2,
   } = options;
 
   const trimmed = prompt.trim();

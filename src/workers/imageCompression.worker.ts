@@ -39,8 +39,9 @@ export interface CompressionResultMessage {
   };
 }
 
-// 发送进度更新
+// 发送进度更新（同时输出到控制台）
 function sendProgress(step: string, percent: number) {
+  console.log(`[图片压缩] ${step} (${percent}%)`);
   self.postMessage({ type: 'progress', progress: { step, percent } } as CompressionResultMessage);
 }
 
@@ -70,7 +71,7 @@ function formatFileSize(bytes: number): string {
 }
 
 /**
- * 使用 OffscreenCanvas 压缩图片
+ * 使用 OffscreenCanvas 进行质量压缩（预缩放已在主流程中完成）
  */
 async function compressWithOffscreenCanvas(
   imageData: ImageBitmap,
@@ -86,13 +87,9 @@ async function compressWithOffscreenCanvas(
   method: string;
   finalDimensions: { width: number; height: number };
 }> {
-  sendProgress('开始压缩...', 10);
-
-  const originalSize = getDataUrlSize(originalDimensions.toString()); // 估算
-
-  // 策略1: 尝试通过质量调整压缩（保持原始分辨率）
   sendProgress('调整图片质量...', 30);
 
+  // 策略1: 尝试通过质量调整压缩
   const qualityResult = await compressByQuality(
     imageData,
     originalType,
@@ -102,11 +99,12 @@ async function compressWithOffscreenCanvas(
 
   if (qualityResult && qualityResult.size <= maxSizeBytes) {
     sendProgress('压缩完成', 100);
+    const finalDimensions = { width: imageData.width, height: imageData.height };
     return {
       dataUrl: qualityResult.dataUrl,
       compressedSize: qualityResult.size,
       method: qualityResult.method,
-      finalDimensions: { width: imageData.width, height: imageData.height },
+      finalDimensions,
     };
   }
 
@@ -325,37 +323,90 @@ self.onmessage = async (e: MessageEvent<CompressionMessage>) => {
     const originalSize = blob.size;
     const originalDimensions = { width: imageData.width, height: imageData.height };
 
+    // ===== 新逻辑：先执行预缩放（无论文件大小）=====
+    let workingBitmap = imageBitmap;
+    let wasPreScaled = false;
+    let preScaledDataUrl: string | null = null;
+
+    if (options.maxWidth && options.maxHeight) {
+      const scale = Math.min(
+        options.maxWidth / imageBitmap.width,
+        options.maxHeight / imageBitmap.height,
+        1 // 不放大
+      );
+
+      if (scale < 1) {
+        const newWidth = Math.round(imageBitmap.width * scale);
+        const newHeight = Math.round(imageBitmap.height * scale);
+
+        console.log(`[预缩放] 原始尺寸: ${imageBitmap.width}x${imageBitmap.height}`);
+        console.log(`[预缩放] 目标尺寸: ${newWidth}x${newHeight} (最大边: ${options.maxWidth}px)`);
+        console.log(`[预缩放] 缩放比例: ${(scale * 100).toFixed(1)}%`);
+
+        sendProgress('预缩放图片...', 10);
+
+        const canvas = new OffscreenCanvas(newWidth, newHeight);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('无法创建 OffscreenCanvas context');
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(imageBitmap, 0, 0, newWidth, newHeight);
+
+        // 转换为 DataURL
+        const preScaledBlob = await canvas.convertToBlob({ type: 'image/webp', quality: 1.0 });
+        preScaledDataUrl = await blobToDataUrl(preScaledBlob);
+        workingBitmap = await createImageBitmap(preScaledBlob);
+        imageBitmap.close(); // 释放原始 bitmap
+        wasPreScaled = true;
+
+        console.log(`[预缩放] ✓ 预缩放完成: ${newWidth}x${newHeight}, 大小: ${formatFileSize(preScaledBlob.size)}`);
+        sendProgress(`预缩放完成: ${newWidth}x${newHeight}`, 15);
+      } else {
+        console.log(`[预缩放] 图片无需缩放 (最大边: ${Math.max(imageBitmap.width, imageBitmap.height)}px ≤ ${options.maxWidth}px)`);
+      }
+    }
+
+    // 获取当前文件大小（可能是原始或预缩放后的）
+    const currentSize = preScaledDataUrl ? new Blob([preScaledDataUrl]).size : originalSize;
+    const currentDimensions = { width: workingBitmap.width, height: workingBitmap.height };
+
     // 如果文件已经符合要求，直接返回
-    if (originalSize <= options.maxSizeBytes) {
-      imageBitmap.close();
+    if (currentSize <= options.maxSizeBytes) {
+      workingBitmap.close();
+      const resultDataUrl = preScaledDataUrl || imageData.dataUrl;
+      console.log(`[图片压缩] 文件已符合要求 (${formatFileSize(currentSize)} ≤ ${formatFileSize(options.maxSizeBytes)})，无需进一步压缩`);
       self.postMessage({
         type: 'result',
         result: {
-          dataUrl: imageData.dataUrl,
+          dataUrl: resultDataUrl,
           originalSize,
-          compressedSize: originalSize,
-          compressionRatio: 1,
-          wasCompressed: false,
-          method: '无需压缩',
+          compressedSize: currentSize,
+          compressionRatio: currentSize / originalSize,
+          wasCompressed: wasPreScaled, // 只要预缩放了就算压缩
+          method: wasPreScaled ? '预缩放' : '无需压缩',
           originalDimensions,
-          finalDimensions: originalDimensions,
+          finalDimensions: currentDimensions,
         },
       } as CompressionResultMessage);
       return;
     }
 
-    // 执行压缩
+    // 文件仍然过大，需要质量压缩
+    console.log(`[图片压缩] 文件仍过大 (${formatFileSize(currentSize)} > ${formatFileSize(options.maxSizeBytes)})，开始质量压缩...`);
+
+    // 执行质量压缩（传入预缩放后的 bitmap）
     const result = await compressWithOffscreenCanvas(
-      imageBitmap,
+      workingBitmap,
       options.maxSizeBytes,
-      options.maxWidth,
-      options.maxHeight,
-      imageData.originalType,
+      undefined, // 不再传入 maxWidth/maxHeight，因为已经预缩放过了
+      undefined,
+      wasPreScaled ? 'image/webp' : imageData.originalType,
       options.initialQuality,
       originalDimensions
     );
 
-    imageBitmap.close();
+    workingBitmap.close();
 
     self.postMessage({
       type: 'result',

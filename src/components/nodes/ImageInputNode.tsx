@@ -112,17 +112,20 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
           ? getAABaoTargetSize(file.size)  // AABao 使用更激进的目标
           : 10 * 1024 * 1024;              // 默认 10MB
 
-        const initialQuality = useAABaoStrategy ? 0.92 : 0.95;
-
-        console.log(`[ImageInput] 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略，目标: ${formatFileSize(maxSize)}`);
+        console.log(`[图片压缩] ========== 开始压缩 ==========`);
+        console.log(`[图片压缩] 文件名: ${file.name}`);
+        console.log(`[图片压缩] 原始大小: ${formatFileSize(file.size)}`);
+        console.log(`[图片压缩] 策略: ${useAABaoStrategy ? 'AABao' : '默认'} | 目标: ${formatFileSize(maxSize)}`);
+        console.log(`[图片压缩] 预缩放: 最大边 2048px | 质量: 100% 起始`);
 
         let result;
 
         // 优先使用 Web Worker（如果支持）
         if (isWorkerSupported && file.size > 1024 * 1024) { // 只对大于 1MB 的文件使用 Worker
-          console.log('[ImageInput] 使用 Web Worker 进行压缩');
+          console.log('[图片压缩] 使用 Web Worker 进行压缩...');
           // 先加载图片获取尺寸
           const { dataUrl, width, height } = await loadImageData(file);
+          console.log(`[图片压缩] 原始尺寸: ${width}x${height}`);
 
           // 使用 Worker 压缩
           result = await compressWithWorker(
@@ -132,7 +135,9 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
             file.type,
             {
               maxSizeBytes: maxSize,
-              initialQuality,
+              maxWidth: 2048,      // 全局预缩放
+              maxHeight: 2048,     // 全局预缩放
+              initialQuality: 1.0, // 100% 质量起始
             }
           );
         } else {
@@ -141,7 +146,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
             console.log('[ImageInput] 浏览器不支持 Worker，使用主线程压缩');
             setIsLegacyCompressing(true);
           }
-          result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+          result = await compressImage(file, maxSize, 2048, 2048, 1.0);
           setIsLegacyCompressing(false);
         }
 
@@ -254,16 +259,17 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
               ? getAABaoTargetSize(file.size)
               : 10 * 1024 * 1024;
 
-            const initialQuality = useAABaoStrategy ? 0.92 : 0.95;
-
-            console.log(`[ImageInput] 粘贴图片 - 使用${useAABaoStrategy ? 'AABao' : '默认'}压缩策略`);
+            console.log(`[图片压缩] ========== 开始压缩（粘贴） ==========`);
+            console.log(`[图片压缩] 原始大小: ${formatFileSize(file.size)}`);
+            console.log(`[图片压缩] 策略: ${useAABaoStrategy ? 'AABao' : '默认'} | 目标: ${formatFileSize(maxSize)}`);
 
             let result;
 
             // 优先使用 Web Worker（如果支持）
             if (isWorkerSupported && file.size > 1024 * 1024) {
-              console.log('[ImageInput] 粘贴图片使用 Web Worker 进行压缩');
+              console.log('[图片压缩] 使用 Web Worker 进行压缩...');
               const { dataUrl, width, height } = await loadImageData(file);
+              console.log(`[图片压缩] 原始尺寸: ${width}x${height}`);
 
               result = await compressWithWorker(
                 dataUrl,
@@ -272,14 +278,16 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
                 file.type,
                 {
                   maxSizeBytes: maxSize,
-                  initialQuality,
+                  maxWidth: 2048,      // 全局预缩放
+                  maxHeight: 2048,     // 全局预缩放
+                  initialQuality: 1.0, // 100% 质量起始
                 }
               );
             } else {
               if (!isWorkerSupported) {
                 setIsLegacyCompressing(true);
               }
-              result = await compressImage(file, maxSize, undefined, undefined, initialQuality);
+              result = await compressImage(file, maxSize, 2048, 2048, 1.0);
               setIsLegacyCompressing(false);
             }
 

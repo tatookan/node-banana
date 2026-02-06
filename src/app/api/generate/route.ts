@@ -427,10 +427,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Apply prompt enhancement (resonance mode: repeat 3 times)
+    // Apply prompt enhancement (resonance mode: repeat 2 times)
     const finalPrompt = resonanceMode
       ? (() => {
-          const enhancementResult = enhancePrompt(prompt, 3);
+          const enhancementResult = enhancePrompt(prompt, 2);
           if (enhancementResult.wasEnhanced) {
             logPromptEnhancement(enhancementResult, `Generate:${requestId}`);
           }
