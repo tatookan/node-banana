@@ -161,6 +161,23 @@ export async function initDatabase() {
   // Migrate api_usage table for multi-currency support
   await migrateApiUsageCurrency();
 
+  // Create rate_limits table for API rate limiting
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL COMMENT '用户ID',
+      endpoint VARCHAR(100) NOT NULL COMMENT 'API端点',
+      request_count INT DEFAULT 1 COMMENT '当前窗口请求数',
+      window_start TIMESTAMP NOT NULL COMMENT '窗口开始时间',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY uk_user_endpoint_window (user_id, endpoint, window_start),
+      INDEX idx_endpoint_window (endpoint, window_start),
+      INDEX idx_updated_at (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // Create workflow_folders table
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS workflow_folders (

@@ -3,6 +3,7 @@ import { GenerateRequest, AabaoGenerateAsyncResponse, ModelType, Resolution, Asp
 import { getUserIdFromToken } from "@/lib/usageTracker";
 import { checkQuota, updateQuotaUsage } from "@/lib/quotaManager";
 import { calculateGenerationCost } from "@/utils/costCalculator";
+import { checkRateLimit, DEFAULT_RATE_LIMITS } from "@/lib/rateLimiter";
 
 export const maxDuration = 300; // 5 minutes for 4K generation
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,40 @@ export async function POST(request: NextRequest) {
       );
     }
     console.log(`[AABao-ASYNC:${requestId}] User ID: ${userId}`);
+
+    // ===== Rate limiting check =====
+    const rateLimitResult = await checkRateLimit(
+      userId,
+      '/api/generate-aabao-async',
+      DEFAULT_RATE_LIMITS['/api/generate-aabao-async']
+    );
+
+    if (!rateLimitResult.allowed) {
+      console.error(`[AABao-ASYNC:${requestId}] ❌ Rate limit exceeded:`, {
+        userId,
+        resetAt: rateLimitResult.resetAt,
+      });
+      return NextResponse.json<AabaoGenerateAsyncResponse>(
+        {
+          success: false,
+          error: `请求过于频繁，请在 ${Math.ceil(rateLimitResult.retryAfter! / 60)} 分钟后重试`
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter),
+            'X-RateLimit-Limit': String(DEFAULT_RATE_LIMITS['/api/generate-aabao-async'].maxRequests),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+          }
+        }
+      );
+    }
+
+    console.log(`[AABao-ASYNC:${requestId}] ✓ Rate limit check passed:`, {
+      remaining: rateLimitResult.remaining,
+      resetAt: rateLimitResult.resetAt,
+    });
 
     // ========================================
     // 2. 解析请求参数

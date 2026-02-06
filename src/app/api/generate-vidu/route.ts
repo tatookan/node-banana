@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ViduGenerateRequest, ViduGenerateResponse, ViduTaskResponse } from "@/types";
 import { getUserIdFromToken } from "@/lib/usageTracker";
+import { checkRateLimit, DEFAULT_RATE_LIMITS } from "@/lib/rateLimiter";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,40 @@ export async function POST(request: NextRequest) {
       );
     }
     console.log(`[VIDU:${requestId}] User ID: ${userId}`);
+
+    // ===== Rate limiting check =====
+    const rateLimitResult = await checkRateLimit(
+      userId,
+      '/api/generate-vidu',
+      DEFAULT_RATE_LIMITS['/api/generate-vidu']
+    );
+
+    if (!rateLimitResult.allowed) {
+      console.error(`[VIDU:${requestId}] ❌ Rate limit exceeded:`, {
+        userId,
+        resetAt: rateLimitResult.resetAt,
+      });
+      return NextResponse.json<ViduGenerateResponse>(
+        {
+          success: false,
+          error: `请求过于频繁，请在 ${Math.ceil(rateLimitResult.retryAfter! / 60)} 分钟后重试`
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter),
+            'X-RateLimit-Limit': String(DEFAULT_RATE_LIMITS['/api/generate-vidu'].maxRequests),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+          }
+        }
+      );
+    }
+
+    console.log(`[VIDU:${requestId}] ✓ Rate limit check passed:`, {
+      remaining: rateLimitResult.remaining,
+      resetAt: rateLimitResult.resetAt,
+    });
 
     // Check API key
     const apiKey = process.env.VIDU_API_KEY;

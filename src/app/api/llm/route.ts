@@ -4,6 +4,7 @@ import { LLMGenerateRequest, LLMGenerateResponse, LLMModelType } from "@/types";
 import { logger } from "@/utils/logger";
 import { recordLLMUsage, getUserIdFromToken } from "@/lib/usageTracker";
 import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
+import { checkRateLimit, DEFAULT_RATE_LIMITS } from "@/lib/rateLimiter";
 
 export const maxDuration = 60; // 1 minute timeout
 
@@ -283,6 +284,42 @@ export async function POST(request: NextRequest) {
     if (token) {
       userId = await getUserIdFromToken(token);
       if (userId) {
+        // ===== Rate limiting check (before quota check) =====
+        const rateLimitResult = await checkRateLimit(
+          userId,
+          '/api/llm',
+          DEFAULT_RATE_LIMITS['/api/llm']
+        );
+
+        if (!rateLimitResult.allowed) {
+          logger.warn('api.llm', 'Rate limit exceeded', {
+            userId,
+            requestId,
+            resetAt: rateLimitResult.resetAt,
+          });
+          return NextResponse.json<LLMGenerateResponse>(
+            {
+              success: false,
+              error: `请求过于频繁，请在 ${Math.ceil(rateLimitResult.retryAfter! / 60)} 分钟后重试`
+            },
+            {
+              status: 429,
+              headers: {
+                'Retry-After': String(rateLimitResult.retryAfter),
+                'X-RateLimit-Limit': String(DEFAULT_RATE_LIMITS['/api/llm'].maxRequests),
+                'X-RateLimit-Remaining': '0',
+                'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+              }
+            }
+          );
+        }
+
+        logger.info('api.llm', 'Rate limit check passed', {
+          requestId,
+          remaining: rateLimitResult.remaining,
+        });
+
+        // ===== Quota check (after rate limit) =====
         try {
           const { checkQuota } = await import('@/lib/quotaManager');
           const { calculateLLMCost } = await import('@/lib/usageTracker');

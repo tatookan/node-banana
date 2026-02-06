@@ -4,6 +4,7 @@ import { GenerateRequest, GenerateResponse, ModelType, Resolution, ImageProvider
 import { recordImageGeneration, getUserIdFromToken } from "@/lib/usageTracker";
 import { uploadGeneratedImageInBackground } from "@/lib/r2-upload";
 import { enhancePrompt, logPromptEnhancement } from "@/utils/promptEnhancer";
+import { checkRateLimit, DEFAULT_RATE_LIMITS } from "@/lib/rateLimiter";
 
 export const maxDuration = 300; // 5 minute timeout
 export const dynamic = 'force-dynamic';
@@ -443,6 +444,42 @@ export async function POST(request: NextRequest) {
     if (token) {
       userId = await getUserIdFromToken(token);
       if (userId) {
+        // ===== Rate limiting check (before quota check) =====
+        const rateLimitResult = await checkRateLimit(
+          userId,
+          '/api/generate',
+          DEFAULT_RATE_LIMITS['/api/generate']
+        );
+
+        if (!rateLimitResult.allowed) {
+          console.error(`[API:${requestId}] ❌ Rate limit exceeded:`, {
+            userId,
+            endpoint: '/api/generate',
+            resetAt: rateLimitResult.resetAt,
+          });
+          return NextResponse.json<GenerateResponse>(
+            {
+              success: false,
+              error: `请求过于频繁，请在 ${Math.ceil(rateLimitResult.retryAfter! / 60)} 分钟后重试`
+            },
+            {
+              status: 429,
+              headers: {
+                'Retry-After': String(rateLimitResult.retryAfter),
+                'X-RateLimit-Limit': String(DEFAULT_RATE_LIMITS['/api/generate'].maxRequests),
+                'X-RateLimit-Remaining': '0',
+                'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+              }
+            }
+          );
+        }
+
+        console.log(`[API:${requestId}] ✓ Rate limit check passed:`, {
+          remaining: rateLimitResult.remaining,
+          resetAt: rateLimitResult.resetAt,
+        });
+
+        // ===== Quota check (after rate limit) =====
         try {
           const { checkQuota } = await import('@/lib/quotaManager');
           const { calculateGenerationCost } = await import('@/utils/costCalculator');
