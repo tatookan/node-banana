@@ -35,6 +35,24 @@ import { logger } from "@/utils/logger";
 import { externalizeWorkflowImages, hydrateWorkflowImages } from "@/utils/imageStorage";
 import { cacheManager, generateCacheKey, type CacheKeyData } from "@/lib/cacheManager";
 
+/**
+ * Helper function to convert Blob to Base64
+ * Used for adding R2 images to global history
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      // Extract base64 part after the comma
+      const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export type EdgeStyle = "angular" | "curved";
 
 // Workflow file format
@@ -1313,7 +1331,20 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                       throw new Error(`R2 object is not an image: ${contentType}`);
                     }
 
+                    // Step 3: Get the actual image data (for global history)
+                    const imageBlob = await testResponse.blob();
+                    const imageBase64 = await blobToBase64(imageBlob);
+
                     console.log(`[Store:${node.id}] ✓ R2 reference validated successfully`);
+
+                    // ===== NEW: Add to global history =====
+                    get().addToGlobalHistory({
+                      image: `data:${contentType};base64,${imageBase64}`,
+                      timestamp,
+                      prompt: text,
+                      aspectRatio: nodeData.aspectRatio,
+                      model: nodeData.model,
+                    });
 
                     // Validation passed - mark as complete
                     updateNodeData(node.id, {
@@ -1641,7 +1672,14 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
                             throw new Error(`R2 object is not an image: ${contentType}`);
                           }
 
+                          // Get the actual image data for display
+                          const imageBlob = await testResponse.blob();
+                          const imageBase64 = await blobToBase64(imageBlob);
+
                           console.log(`[Store:${node.id}] ✓ VIDU R2 reference validated`);
+
+                          // Note: VIDU images are not added to global history
+                          // because VIDU is a video generation model, not an image model
 
                           updateNodeData(node.id, {
                             status: "complete",

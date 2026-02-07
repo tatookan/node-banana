@@ -556,8 +556,39 @@ export async function POST(request: NextRequest) {
           const actualCost = calculateGenerationCost(model, actualResolution, providerValue);
           await updateQuotaUsage(userId, actualCost);
           console.log(`[API:${requestId}] ✓ Quota updated:`, { userId, cost: actualCost });
+
+          // ===== NEW: Record to user_images table for cloud gallery =====
+          // Worker 已经上传到 R2，但我们需要记录元数据到数据库
+          // 从 imageRef 提取信息: "r2:userId/generation/timestamp-random.jpeg"
+          const imageKey = workerImageRef.replace('r2:', '');
+          const { execute } = await import('@/lib/db');
+
+          // 文件大小估算（Worker 未返回实际大小）
+          // JPEG 格式，4K 图片约 500KB-2MB，2K 约 200KB-800KB，1K 约 100KB-300KB
+          const estimatedSize = actualResolution === '4K' ? 1500000 :
+                              actualResolution === '2K' ? 500000 : 200000;
+
+          await execute(
+            `INSERT INTO user_images (
+              user_id, image_key, image_type, file_size,
+              prompt, model, aspect_ratio, resolution
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              userId,
+              imageKey,
+              'generation',
+              estimatedSize,
+              prompt || null,
+              model,
+              aspectRatio || null,
+              actualResolution,
+            ]
+          );
+          console.log(`[API:${requestId}] ✓ Recorded to user_images: ${imageKey}`);
+
         } catch (err) {
           console.error(`[API:${requestId}] ⚠️ Usage record error:`, err);
+          // 即使 user_images 记录失败，也不影响返回结果
         }
       }
 
