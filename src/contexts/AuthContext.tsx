@@ -108,7 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      // Clear user state immediately
       setUser(null);
+      // Small delay to ensure cookie deletion is processed by browser
+      // before redirecting to avoid race condition where /api/auth/me
+      // still reads the old cookie
+      await new Promise(resolve => setTimeout(resolve, 100));
       window.location.href = "/login";
     }
   };
