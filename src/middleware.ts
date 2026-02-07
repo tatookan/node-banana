@@ -8,6 +8,7 @@ const publicRoutes = [
   '/api/auth/register',
   '/api/auth/logout',
   '/api/auth/verify',
+  '/api/auth/refresh', // Token refresh endpoint (for migration period)
   '/api/auth/me',
   '/api/r2/test', // R2 connection test endpoint (for debugging)
   '/api/vidu-callback', // VIDU API callback endpoint (called by Cloudflare Worker)
