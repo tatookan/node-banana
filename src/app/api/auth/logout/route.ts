@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   // Using both maxAge: 0 and expires: new Date(0) for maximum compatibility
   response.cookies.set('auth_token', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     sameSite: 'lax',
     maxAge: 0,
     expires: new Date(0), // Set to epoch (Jan 1, 1970) to ensure deletion
