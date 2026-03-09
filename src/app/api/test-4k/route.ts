@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
       console.log(`[TEST-4K:${requestId}] Direct connection (no proxy)`);
     }
 
-    const ai = new GoogleGenAI(clientConfig);
+    // const ai = new GoogleGenAI(clientConfig);
+    const ai = new GoogleGenAI({
+      apiKey: process.env.NANOBANANA_API_KEY,
+      httpOptions: {
+        baseUrl: process.env.NANOBANANA_API_BASE_URL,
+      },
+    });
 
     // Test 1K, 2K, 4K resolutions
     const resolutions = ["1K", "2K", "4K"];
@@ -44,7 +50,7 @@ export async function POST(request: NextRequest) {
         imageConfig: {
           aspectRatio: "9:16",
           imageSize: resolution,
-          outputMimeType: "image/png",
+          // outputMimeType: "image/png",
         },
         seed: 12345,
       };
