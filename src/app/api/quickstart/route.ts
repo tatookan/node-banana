@@ -144,13 +144,7 @@ export async function POST(request: NextRequest) {
 
     // Call Gemini API
     console.log(`[Quickstart:${requestId}] Calling Gemini API...`);
-    // const ai = new GoogleGenAI({ apiKey });
-    const ai = new GoogleGenAI({
-      apiKey: process.env.NANOBANANA_API_KEY,
-      httpOptions: {
-        baseUrl: process.env.NANOBANANA_API_BASE_URL,
-      },
-    });
+    const ai = new GoogleGenAI({ apiKey });
     const startTime = Date.now();
 
     const response = await ai.models.generateContent({

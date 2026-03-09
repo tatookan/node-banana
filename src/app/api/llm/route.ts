@@ -45,17 +45,11 @@ async function generateWithGoogle(
   // Use Cloudflare Worker as proxy for Vertex AI API
   const cloudflareWorkerUrl = process.env.CLOUDFLARE_WORKER_URL || 'https://nano.mygogogo1.de5.net';
 
-  // const ai = new GoogleGenAI({
-  //   vertexai: true,
-  //   apiKey: apiKey,
-  //   httpOptions: {
-  //     baseUrl: cloudflareWorkerUrl,
-  //   },
-  // });
   const ai = new GoogleGenAI({
-    apiKey: process.env.NANOBANANA_API_KEY,
+    vertexai: true,
+    apiKey: apiKey,
     httpOptions: {
-      baseUrl: process.env.NANOBANANA_API_BASE_URL,
+      baseUrl: cloudflareWorkerUrl,
     },
   });
 
