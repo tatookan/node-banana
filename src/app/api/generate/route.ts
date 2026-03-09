@@ -74,12 +74,12 @@ function extractImageFromResponse(
     return null;
   }
 
-   console.info(
+  console.info(
     `[API:${requestId}] Parts count in first candidate: ${responseParts.length}`,
   );
   responseParts.forEach((part: any, idx: number) => {
     const partKeys = Object.keys(part);
-     console.info(`[API:${requestId}] Part ${idx + 1}: ${partKeys.join(", ")}`);
+    console.info(`[API:${requestId}] Part ${idx + 1}: ${partKeys.join(", ")}`);
   });
 
   for (const part of responseParts) {
@@ -87,7 +87,7 @@ function extractImageFromResponse(
       const mimeType = part.inlineData.mimeType || "image/png";
       const imageData = part.inlineData.data;
       const imageSizeKB = (imageData.length / 1024).toFixed(2);
-       console.info(
+      console.info(
         `[API:${requestId}] ✓ Found image in response: ${mimeType}, ${imageSizeKB}KB base64`,
       );
       return `data:${mimeType};base64,${imageData}`;
@@ -119,88 +119,99 @@ async function generateWithGoogle(
   topP?: number,
   requestId?: string,
 ): Promise<string> {
-  const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
-  if (!apiKey) {
-    throw new Error("GOOGLE_CLOUD_API_KEY not configured");
-  }
-  const requestdata = {
-    images,
-    prompt,
-    model,
-    aspectRatio,
-    resolution,
-    useGoogleSearch,
-    resonanceMode,
-    systemPrompt,
-    topP,
-  };
-   console.info(
-    'requestdata----------------------------------',
-    requestdata
-  );
-  console.info(`api-key----------------------------: ${process.env.NANOBANANA_API_KEY}`);
-  console.info(`baseUrl----------------------------: ${process.env.NANOBANANA_API_BASE_URL}`);
-
-  const ai = new GoogleGenAI({
-    apiKey: process.env.NANOBANANA_API_KEY,
-    httpOptions: {
-      baseUrl: process.env.NANOBANANA_API_BASE_URL,
-    },
-  });
-
-  const modelId = MODEL_MAP[model];
-  const imageData = extractImageData(images, requestId!);
-  const parts = buildRequestParts(prompt, imageData);
-
-  const config: GenerateContentConfig = {
-    responseModalities: ["TEXT", "IMAGE"],
-    topP: topP !== undefined ? topP : 0.3,
-    imageConfig: {
-      // outputMimeType: "image/png",  // Google supports this
-      aspectRatio: aspectRatio,
-      imageSize: resolution,
-    },
-  };
-
-  if (systemPrompt && systemPrompt.trim()) {
-    config.systemInstruction = {
-      parts: [{ text: systemPrompt.trim() }],
+  try {
+    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
+    if (!apiKey) {
+      throw new Error("GOOGLE_CLOUD_API_KEY not configured");
+    }
+    const requestdata = {
+      images,
+      prompt,
+      model,
+      aspectRatio,
+      resolution,
+      useGoogleSearch,
+      resonanceMode,
+      systemPrompt,
+      topP,
     };
+    console.info("requestdata----------------------------------", requestdata);
+    console.info(
+      `api-key----------------------------: ${process.env.NANOBANANA_API_KEY}`,
+    );
+    console.info(
+      `baseUrl----------------------------: ${process.env.NANOBANANA_API_BASE_URL}`,
+    );
+
+    const ai = new GoogleGenAI({
+      apiKey: process.env.NANOBANANA_API_KEY,
+      httpOptions: {
+        baseUrl: process.env.NANOBANANA_API_BASE_URL,
+      },
+    });
+
+    const modelId = MODEL_MAP[model];
+    const imageData = extractImageData(images, requestId!);
+    const parts = buildRequestParts(prompt, imageData);
+
+    const config: GenerateContentConfig = {
+      responseModalities: ["TEXT", "IMAGE"],
+      topP: topP !== undefined ? topP : 0.3,
+      imageConfig: {
+        // outputMimeType: "image/png",  // Google supports this
+        aspectRatio: aspectRatio,
+        imageSize: resolution,
+      },
+    };
+
+    if (systemPrompt && systemPrompt.trim()) {
+      config.systemInstruction = {
+        parts: [{ text: systemPrompt.trim() }],
+      };
+    }
+
+    if (topP !== undefined) {
+      config.topP = topP;
+    }
+    console.info(`[API:${requestId}] Building config for Google API...`);
+
+    const tools: any[] = [];
+    if (model === "nano-banana-pro" && useGoogleSearch) {
+      tools.push({ googleSearch: {} });
+    }
+
+    const geminiStartTime = Date.now();
+    console.info("config----------------------------------", config);
+    console.info(
+      `开始调用 Google API: model=${modelId}, images=${images.length}, prompt length=${prompt.length}, useGoogleSearch=${useGoogleSearch}`,
+    );
+
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: [{ role: "user", parts }],
+      config,
+      ...(tools.length > 0 && { tools }),
+    });
+    console.info(
+      `[API:${requestId}] Google API response received:`,
+      JSON.stringify(response),
+    );
+
+    const geminiDuration = Date.now() - geminiStartTime;
+    console.info(
+      `[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`,
+    );
+
+    const dataUrl = extractImageFromResponse(response, requestId || "");
+    if (!dataUrl) {
+      throw new Error("No image in response");
+    }
+
+    return dataUrl;
+  } catch (error) {
+    console.error(`[API:${requestId}] ❌ Error in generateWithGoogle:`, error);
+    return Promise.reject(error);
   }
-
-  if (topP !== undefined) {
-    config.topP = topP;
-  }
-   console.info(`[API:${requestId}] Building config for Google API...`);
-
-  const tools: any[] = [];
-  if (model === "nano-banana-pro" && useGoogleSearch) {
-    tools.push({ googleSearch: {} });
-  }
-
-  const geminiStartTime = Date.now();
-  console.info("config----------------------------------", config);
-  console.info(`开始调用 Google API: model=${modelId}, images=${images.length}, prompt length=${prompt.length}, useGoogleSearch=${useGoogleSearch}`);
-
-  const response = await ai.models.generateContent({
-    model: modelId,
-    contents: [{ role: "user", parts }],
-    config,
-    ...(tools.length > 0 && { tools }),
-  });
-  console.info(`[API:${requestId}] Google API response received:`, JSON.stringify(response));
-
-  const geminiDuration = Date.now() - geminiStartTime;
-   console.info(
-    `[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`,
-  );
-
-  const dataUrl = extractImageFromResponse(response, requestId || "");
-  if (!dataUrl) {
-    throw new Error("No image in response");
-  }
-
-  return dataUrl;
 }
 
 // Generate with AABao API (direct call, no proxy)
@@ -225,20 +236,20 @@ async function generateWithAabao(
   let modelId = MODEL_MAP[model];
   if (model === "nano-banana-pro" && resolution === "4K") {
     modelId = "gemini-3-pro-image-preview-4k";
-     console.info(`[API:${requestId}]   Using 4K-specific model: ${modelId}`);
+    console.info(`[API:${requestId}]   Using 4K-specific model: ${modelId}`);
   }
 
   // Use Worker with /aabao/ path prefix to trigger AABao routing
   const endpoint = `${cloudflareWorkerUrl}/aabao/v1beta/models/${modelId}:generateContent/`;
 
-   console.info(`[API:${requestId}] Using AABao API via Cloudflare Worker`);
-   console.info(`[API:${requestId}]   Model: ${model} -> ${modelId}`);
-   console.info(`[API:${requestId}]   Worker: ${cloudflareWorkerUrl}`);
-   console.info(`[API:${requestId}]   Endpoint: ${endpoint}`);
+  console.info(`[API:${requestId}] Using AABao API via Cloudflare Worker`);
+  console.info(`[API:${requestId}]   Model: ${model} -> ${modelId}`);
+  console.info(`[API:${requestId}]   Worker: ${cloudflareWorkerUrl}`);
+  console.info(`[API:${requestId}]   Endpoint: ${endpoint}`);
 
   const imageData = extractImageData(images, requestId!);
   const parts = buildRequestParts(prompt, imageData);
-   console.info(
+  console.info(
     `[API:${requestId}] Request parts count: ${parts.length} (1 text + ${imageData.length} images)`,
   );
 
@@ -252,24 +263,24 @@ async function generateWithAabao(
     config.systemInstruction = {
       parts: [{ text: systemPrompt.trim() }],
     };
-     console.info(
+    console.info(
       `[API:${requestId}]   System prompt: ${systemPrompt.substring(0, 100)}${systemPrompt.length > 100 ? "..." : ""}`,
     );
   }
 
   if (topP !== undefined) {
     config.topP = topP;
-     console.info(`[API:${requestId}]   Top P: ${topP}`);
+    console.info(`[API:${requestId}]   Top P: ${topP}`);
   }
 
   if (aspectRatio) {
     config.imageConfig.aspectRatio = aspectRatio;
-     console.info(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
+    console.info(`[API:${requestId}]   Added aspectRatio: ${aspectRatio}`);
   }
 
   if (resolution) {
     config.imageConfig.imageSize = resolution;
-     console.info(`[API:${requestId}]   Added imageSize: ${resolution}`);
+    console.info(`[API:${requestId}]   Added imageSize: ${resolution}`);
   }
 
   // Note: AABao does NOT support outputMimeType or Google Search
@@ -279,7 +290,7 @@ async function generateWithAabao(
     );
   }
 
-   console.info(
+  console.info(
     `[API:${requestId}] Final config:`,
     JSON.stringify(config, null, 2),
   );
@@ -290,7 +301,7 @@ async function generateWithAabao(
     generationConfig: config,
   };
 
-   console.info(`[API:${requestId}] Calling AABao API...`);
+  console.info(`[API:${requestId}] Calling AABao API...`);
   const aabaoStartTime = Date.now();
 
   // AABao API can take 40-90 seconds for 2K, longer for 4K
@@ -322,10 +333,10 @@ async function generateWithAabao(
 
     clearTimeout(timeoutId);
     const aabaoDuration = Date.now() - aabaoStartTime;
-     console.info(
+    console.info(
       `[API:${requestId}] AABao API call completed in ${aabaoDuration}ms`,
     );
-     console.info(
+    console.info(
       `[API:${requestId}] Response status: ${response.status}, headers: ${response.headers.get("content-type")}`,
     );
 
@@ -369,11 +380,11 @@ async function generateWithAabao(
 
       // Check if Worker processed and uploaded to R2
       if (result.success && result.imageRef && !isWorkerFallback) {
-         console.info(
+        console.info(
           `[API:${requestId}] ✓ Worker processed JSON and uploaded to R2: ${result.imageRef}`,
         );
         if (result._workerMetrics) {
-           console.info(
+          console.info(
             `[API:${requestId}]   Worker metrics:`,
             result._workerMetrics,
           );
@@ -383,20 +394,20 @@ async function generateWithAabao(
       }
     } catch (e) {
       // Not a Worker response, fall through to regular JSON parsing
-       console.info(
+      console.info(
         `[API:${requestId}] Not a Worker response, parsing JSON locally...`,
       );
     }
 
     // Fallback: Worker didn't process, parse JSON locally
-     console.info(
+    console.info(
       `[API:${requestId}] Parsing JSON response (this may take a while for large images)...`,
     );
-     console.info(
+    console.info(
       `[API:${requestId}] Response body received, size: ${(responseText.length / 1024 / 1024).toFixed(2)}MB`,
     );
     const data = JSON.parse(responseText);
-     console.info(`[API:${requestId}] JSON parsed, extracting image...`);
+    console.info(`[API:${requestId}] JSON parsed, extracting image...`);
 
     const extractedDataUrl = extractImageFromResponse(data, requestId || "");
     if (!extractedDataUrl) {
@@ -404,7 +415,7 @@ async function generateWithAabao(
     }
     dataUrl = extractedDataUrl;
 
-     console.info(
+    console.info(
       `[API:${requestId}] ✓ Image extracted successfully, size: ${(dataUrl.length / 1024).toFixed(2)}KB`,
     );
     return { dataUrl };
@@ -427,7 +438,7 @@ async function generateWithAabao(
 // Main POST handler
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7);
-   console.info(
+  console.info(
     `\n[API:${requestId}] ========== NEW GENERATE REQUEST ==========`,
   );
   try {
@@ -458,7 +469,7 @@ export async function POST(request: NextRequest) {
       systemPrompt,
       topP,
     } = body;
-   
+
     // Validate image count
     const imageCount = images.length;
     if (imageCount > MAX_IMAGES) {
@@ -525,7 +536,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-         console.info(`[API:${requestId}] ✓ Rate limit check passed:`, {
+        console.info(`[API:${requestId}] ✓ Rate limit check passed:`, {
           remaining: rateLimitResult.remaining,
           resetAt: rateLimitResult.resetAt,
         });
@@ -553,7 +564,7 @@ export async function POST(request: NextRequest) {
               { status: 403 },
             );
           }
-           console.info(`[API:${requestId}] ✓ Quota check passed:`, {
+          console.info(`[API:${requestId}] ✓ Quota check passed:`, {
             quotaLimit: quotaCheck.quotaLimit,
             quotaUsed: quotaCheck.quotaUsed,
             quotaRemaining: quotaCheck.quotaRemaining,
@@ -608,14 +619,14 @@ export async function POST(request: NextRequest) {
     }
 
     const dataUrlSizeKB = (dataUrl.length / 1024).toFixed(2);
-     console.info(`[API:${requestId}] Data URL size: ${dataUrlSizeKB}KB`);
+    console.info(`[API:${requestId}] Data URL size: ${dataUrlSizeKB}KB`);
 
     // Check if Worker already uploaded to R2 (Paid plan feature)
     if (workerImageRef) {
-       console.info(
+      console.info(
         `[API:${requestId}] ✓✓✓ Worker already uploaded to R2: ${workerImageRef}`,
       );
-       console.info(
+      console.info(
         `[API:${requestId}] Skipping local R2 upload, returning Worker's R2 ref`,
       );
 
@@ -642,7 +653,7 @@ export async function POST(request: NextRequest) {
             providerValue,
           );
           await updateQuotaUsage(userId, actualCost);
-           console.info(`[API:${requestId}] ✓ Quota updated:`, {
+          console.info(`[API:${requestId}] ✓ Quota updated:`, {
             userId,
             cost: actualCost,
           });
@@ -678,7 +689,7 @@ export async function POST(request: NextRequest) {
               actualResolution,
             ],
           );
-           console.info(
+          console.info(
             `[API:${requestId}] ✓ Recorded to user_images: ${imageKey}`,
           );
         } catch (err) {
@@ -693,16 +704,16 @@ export async function POST(request: NextRequest) {
       };
       const responseSize = JSON.stringify(responsePayload).length;
       const responseSizeKB = (responseSize / 1024).toFixed(2);
-       console.info(
+      console.info(
         `[API:${requestId}] Response size: ${responseSizeKB}KB (R2 ref)`,
       );
-       console.info(`[API:${requestId}] ✓✓✓ COMPLETE (Worker R2 mode)`);
+      console.info(`[API:${requestId}] ✓✓✓ COMPLETE (Worker R2 mode)`);
 
       return NextResponse.json<GenerateResponse>(responsePayload);
     }
 
     // Fallback: Worker didn't upload, need to upload locally
-     console.info(
+    console.info(
       `[API:${requestId}] ✓✓✓ SUCCESS - Generated image, uploading to R2 locally...`,
     );
 
@@ -735,7 +746,7 @@ export async function POST(request: NextRequest) {
             providerValue,
           );
           await updateQuotaUsage(userId, actualCost);
-           console.info(`[API:${requestId}] ✓ Quota updated:`, {
+          console.info(`[API:${requestId}] ✓ Quota updated:`, {
             userId,
             cost: actualCost,
           });
@@ -749,7 +760,7 @@ export async function POST(request: NextRequest) {
         // Upload to R2 synchronously
         try {
           const { uploadGeneratedImage } = await import("@/lib/r2-upload");
-           console.info(`[API:${requestId}] Uploading to R2...`);
+          console.info(`[API:${requestId}] Uploading to R2...`);
 
           const uploadResult = await uploadGeneratedImage(userId, dataUrl, {
             prompt,
@@ -760,7 +771,7 @@ export async function POST(request: NextRequest) {
 
           if (uploadResult.success && uploadResult.imageRef) {
             // Success: Return R2 reference
-             console.info(
+            console.info(
               `[API:${requestId}] ✓✓✓ R2 UPLOAD SUCCESS: ${uploadResult.imageRef}`,
             );
 
@@ -770,7 +781,7 @@ export async function POST(request: NextRequest) {
             };
             responseSize = JSON.stringify(responsePayload).length;
             const responseSizeKB = (responseSize / 1024).toFixed(2);
-             console.info(
+            console.info(
               `[API:${requestId}] Response size: ${responseSizeKB}KB (R2 ref vs ${dataUrlSizeKB}KB Base64)`,
             );
           } else {
@@ -817,7 +828,7 @@ export async function POST(request: NextRequest) {
     }
 
     const responseSizeMB = (responseSize / (1024 * 1024)).toFixed(2);
-     console.info(
+    console.info(
       `[API:${requestId}] Total response payload size: ${responseSizeMB}MB`,
     );
 
