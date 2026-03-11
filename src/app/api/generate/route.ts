@@ -137,16 +137,17 @@ async function generateWithGoogle(
     };
     console.info("requestdata----------------------------------", requestdata);
     console.info(
-      `api-key----------------------------: ${process.env.NANOBANANA_API_KEY}`,
+      `api-key----------------------------: ${process.env.GOOGLE_API_KEY}`,
     );
     console.info(
-      `baseUrl----------------------------: ${process.env.NANOBANANA_API_BASE_URL}`,
+      `baseUrl----------------------------: ${process.env.GOOGLE_GEMINI_ENDPOINT}`,
     );
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.NANOBANANA_API_KEY,
+      vertexai:  true,
+      apiKey: process.env.GOOGLE_API_KEY,
       httpOptions: {
-        baseUrl: process.env.NANOBANANA_API_BASE_URL,
+        baseUrl: process.env.GOOGLE_GEMINI_ENDPOINT,
       },
     });
 
@@ -154,25 +155,6 @@ async function generateWithGoogle(
     const imageData = extractImageData(images, requestId!);
     const parts = buildRequestParts(prompt, imageData);
 
-    const config: GenerateContentConfig = {
-      responseModalities: ["TEXT", "IMAGE"],
-      topP: topP !== undefined ? topP : 0.3,
-      imageConfig: {
-        // outputMimeType: "image/png",  // Google supports this
-        aspectRatio: aspectRatio,
-        imageSize: resolution,
-      },
-    };
-
-    if (systemPrompt && systemPrompt.trim()) {
-      config.systemInstruction = {
-        parts: [{ text: systemPrompt.trim() }],
-      };
-    }
-
-    if (topP !== undefined) {
-      config.topP = topP;
-    }
     console.info(`[API:${requestId}] Building config for Google API...`);
 
     const tools: any[] = [];
@@ -181,7 +163,6 @@ async function generateWithGoogle(
     }
 
     const geminiStartTime = Date.now();
-    console.info("config----------------------------------", config);
     console.info(
       `开始调用 Google API: model=${modelId}, images=${images.length}, prompt length=${prompt.length}, useGoogleSearch=${useGoogleSearch}`,
     );
@@ -189,13 +170,23 @@ async function generateWithGoogle(
     const response = await ai.models.generateContent({
       model: modelId,
       contents: [{ role: "user", parts }],
-      config,
+      config: {
+        systemInstruction: systemPrompt
+          ? {
+              parts: [{ text: systemPrompt.trim() }],
+            }
+          : undefined,
+        responseModalities: ['TEXT', 'IMAGE'],
+        topP: topP !== undefined ? topP : 0.3,
+        imageConfig: {
+            aspectRatio: aspectRatio || '1:1',
+            imageSize: resolution || '1024x1024'
+        }
+      },
       ...(tools.length > 0 && { tools }),
     });
     console.info(
-      `[API:${requestId}] Google API response received:`,
-      JSON.stringify(response),
-    );
+      `[API:${requestId}] Google API response received:`)
 
     const geminiDuration = Date.now() - geminiStartTime;
     console.info(
