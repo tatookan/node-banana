@@ -193,12 +193,25 @@ async function generateWithGoogle(
       `[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`,
     );
 
-    const dataUrl = extractImageFromResponse(response, requestId || "");
-    if (!dataUrl) {
-      throw new Error("No image in response");
+    const responseParts = response.candidates?.[0]?.content?.parts;
+    if (!responseParts) {
+      throw new Error("No parts in response");
     }
 
-    return dataUrl;
+    for (const part of responseParts) {
+      if (part.text) {
+        console.info(`[API:${requestId}] Text part: ${part.text}`);
+      } else if (part.inlineData?.data) {
+        const mimeType = part.inlineData.mimeType || "image/png";
+        const imageData = part.inlineData.data;
+        console.info(
+          `[API:${requestId}] ✓ Found image in response: ${mimeType}, ${(imageData.length / 1024).toFixed(2)}KB base64`,
+        );
+        return `data:${mimeType};base64,${imageData}`;
+      }
+    }
+
+    throw new Error("No image in response");
   } catch (error) {
     console.error(`[API:${requestId}] ❌ Error in generateWithGoogle:`, error);
     return Promise.reject(error);
