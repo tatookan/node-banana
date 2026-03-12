@@ -120,9 +120,9 @@ async function generateWithGoogle(
   requestId?: string,
 ): Promise<string> {
   try {
-    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
+    const apiKey = process.env.NANOBANANA_API_KEY;
     if (!apiKey) {
-      throw new Error("GOOGLE_CLOUD_API_KEY not configured");
+      throw new Error("NANOBANANA_API_KEY not configured");
     }
     const requestdata = {
       images,
@@ -137,17 +137,16 @@ async function generateWithGoogle(
     };
     console.info("requestdata----------------------------------", requestdata);
     console.info(
-      `api-key----------------------------: ${process.env.GOOGLE_API_KEY}`,
+      `api-key----------------------------: ${process.env.NANOBANANA_API_KEY}`,
     );
     console.info(
-      `baseUrl----------------------------: ${process.env.GOOGLE_GEMINI_ENDPOINT}`,
+      `baseUrl----------------------------: ${process.env.NANOBANANA_API_BASE_URL}`,
     );
 
     const ai = new GoogleGenAI({
-      vertexai:  true,
-      apiKey: process.env.GOOGLE_API_KEY,
+      apiKey: process.env.NANOBANANA_API_KEY,
       httpOptions: {
-        baseUrl: process.env.GOOGLE_GEMINI_ENDPOINT,
+        baseUrl: process.env.NANOBANANA_API_BASE_URL,
       },
     });
 
@@ -180,28 +179,22 @@ async function generateWithGoogle(
         topP: topP !== undefined ? topP : 0.3,
         imageConfig: {
             aspectRatio: aspectRatio || '1:1',
-            imageSize: resolution || '1024x1024'
+            imageSize: resolution || '1K'
         }
       },
       ...(tools.length > 0 && { tools }),
     });
-    console.info(
-      `[API:${requestId}] Google API response received:`)
-
     const geminiDuration = Date.now() - geminiStartTime;
     console.info(
       `[API:${requestId}] Gemini API call completed in ${geminiDuration}ms`,
     );
 
-    const responseParts = response.candidates?.[0]?.content?.parts;
-    if (!responseParts) {
-      throw new Error("No parts in response");
+    const candidates = response.candidates;
+    if (!candidates || candidates.length === 0 || !candidates[0].content?.parts) {
+      throw new Error("No candidates in response");
     }
-
-    for (const part of responseParts) {
-      if (part.text) {
-        console.info(`[API:${requestId}] Text part: ${part.text}`);
-      } else if (part.inlineData?.data) {
+    for (const part of candidates[0].content.parts) {
+      if (part.inlineData?.data) {
         const mimeType = part.inlineData.mimeType || "image/png";
         const imageData = part.inlineData.data;
         console.info(
